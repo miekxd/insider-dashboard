@@ -2,125 +2,146 @@
 @tailwind components;
 @tailwind utilities;
 
-/* Theme Variables */
+/*
+ * Professional, minimal, bold red accents
+ */
 :root {
-  /* Light Mode - IBKR Style: Red, White, Black */
+  /* Light Mode - Clean white with sharp contrast */
   --bg-primary: #FFFFFF;
-  --bg-secondary: #F9FAFB;
-  --bg-tertiary: #F3F4F6;
-  --bg-hover: #FEE2E2;
-  
-  --text-primary: #111827;
-  --text-secondary: #4B5563;
-  --text-tertiary: #9CA3AF;
-  
-  --purple-primary: #DC2626;
-  --purple-secondary: #EF4444;
-  --purple-tertiary: #F87171;
-  --purple-light: #FEE2E2;
-  
-  --border-primary: #E5E7EB;
-  --border-secondary: #FCA5A5;
-  
-  --shadow: rgba(220, 38, 38, 0.1);
+  --bg-secondary: #FAFAFA;
+  --bg-tertiary: #F5F5F5;
+  --bg-elevated: #FFFFFF;
+  --bg-hover: #FEF2F2;
+  --bg-accent: #DC2626;
+
+  --text-primary: #000000;
+  --text-secondary: #525252;
+  --text-tertiary: #737373;
+  --text-muted: #A3A3A3;
+  --text-on-accent: #FFFFFF;
+
+  --accent-primary: #B91C1C;
+  --accent-primary-hover: #991B1B;
+  --accent-primary-muted: #FEE2E2;
+  --accent-primary-light: #FECACA;
+
+  /* Semantic colors */
+  --accent-positive: #16A34A;
+  --accent-positive-muted: #DCFCE7;
+  --accent-negative: #DC2626;
+  --accent-negative-muted: #FEE2E2;
+  --accent-neutral: #0066CC;
+  --accent-neutral-muted: #DBEAFE;
+  --accent-warning: #CA8A04;
+  --accent-warning-muted: #FEF9C3;
+
+  --border-primary: #E5E5E5;
+  --border-secondary: #D4D4D4;
+  --border-accent: #DB0011;
+  --border-focus: #DB0011;
+
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.04);
+  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.06);
+  --shadow-lg: 0 12px 32px rgba(0, 0, 0, 0.1);
 }
 
 .dark {
-  /* Dark Mode - IBKR Style: Red, Black, White */
+  /* Dark Mode - Warm charcoal with red accents */
   --bg-primary: #0A0A0A;
-  --bg-secondary: #1A1A1A;
-  --bg-tertiary: #2A2A2A;
-  --bg-hover: #3A1A1A;
-  
+  --bg-secondary: #141414;
+  --bg-tertiary: #1F1F1F;
+  --bg-elevated: #141414;
+  --bg-hover: #2A1A1A;
+  --bg-accent: #DC2626;
+
   --text-primary: #FAFAFA;
-  --text-secondary: #D1D5DB;
-  --text-tertiary: #9CA3AF;
-  
-  --purple-primary: #EF4444;
-  --purple-secondary: #F87171;
-  --purple-tertiary: #FCA5A5;
-  --purple-light: #7F1D1D;
-  
-  --border-primary: #2A2A2A;
-  --border-secondary: #7F1D1D;
-  
-  --shadow: rgba(239, 68, 68, 0.2);
+  --text-secondary: #D4D4D4;
+  --text-tertiary: #A3A3A3;
+  --text-muted: #737373;
+  --text-on-accent: #FFFFFF;
+
+  --accent-primary: #bb0d0d;
+  --accent-primary-hover: #EF4444;
+  --accent-primary-muted: #450A0A;
+  --accent-primary-light: #7F1D1D;
+
+  /* Semantic colors */
+  --accent-positive: #22C55E;
+  --accent-positive-muted: #14532D;
+  --accent-negative: #EF4444;
+  --accent-negative-muted: #450A0A;
+  --accent-neutral: #3B82F6;
+  --accent-neutral-muted: #1E3A8A;
+  --accent-warning: #EAB308;
+  --accent-warning-muted: #713F12;
+
+  --border-primary: #262626;
+  --border-secondary: #404040;
+  --border-accent: #EF4444;
+  --border-focus: #EF4444;
+
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.4);
+  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.5);
+  --shadow-lg: 0 12px 32px rgba(0, 0, 0, 0.6);
 }
 
 /* Base styles */
+* {
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
 body {
   background-color: var(--bg-primary);
   color: var(--text-primary);
-  transition: background-color 0.3s ease, color 0.3s ease;
+  transition: background-color 0.2s ease, color 0.2s ease;
 }
 
-/* Custom scrollbar styling */
+/* Custom scrollbar - minimal */
 ::-webkit-scrollbar {
-  width: 8px;
+  width: 4px;
+  height: 4px;
 }
 
 ::-webkit-scrollbar-track {
-  background: var(--bg-secondary);
+  background: transparent;
 }
 
 ::-webkit-scrollbar-thumb {
-  background: var(--purple-tertiary);
-  border-radius: 4px;
+  background: var(--accent-primary);
+  border-radius: 2px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: var(--purple-secondary);
+  background: var(--accent-primary-hover);
 }
 
-/* Dark mode scrollbar */
-.dark ::-webkit-scrollbar-track {
-  background: var(--bg-tertiary);
+/* Selection with brand color */
+::selection {
+  background-color: var(--accent-primary);
+  color: var(--text-on-accent);
 }
 
-/* Loading spinner */
-.spinner {
-  @apply animate-spin rounded-full h-6 w-6 border-b-2;
-  border-color: var(--purple-primary);
-}
-
-/* Utility classes */
-.text-purple {
-  color: var(--purple-primary);
-}
-
-.bg-purple {
-  background-color: var(--purple-primary);
-}
-
-.border-purple {
-  border-color: var(--purple-secondary);
-}
-
-.text-red {
-  color: var(--purple-primary);
-}
-
-.bg-red {
-  background-color: var(--purple-primary);
-}
-
-.border-red {
-  border-color: var(--purple-secondary);
-}
-
-.bg-secondary {
-  background-color: var(--bg-secondary);
-}
-
-.bg-tertiary {
-  background-color: var(--bg-tertiary);
+/* Focus states */
+*:focus-visible {
+  outline: 2px solid var(--border-focus);
+  outline-offset: 2px;
 }
 
 /* Animations */
 @keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes slideUp {
   from {
     opacity: 0;
-    transform: translateY(10px);
+    transform: translateY(8px);
   }
   to {
     opacity: 1;
@@ -128,13 +149,86 @@ body {
   }
 }
 
+@keyframes scaleIn {
+  from {
+    opacity: 0;
+    transform: scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes rowFadeIn {
+  from {
+    opacity: 0;
+    transform: translateX(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
 .animate-fade-in {
-  animation: fadeIn 0.3s ease-out;
+  animation: fadeIn 0.2s ease-out;
 }
 
-/* Focus visible for accessibility */
-*:focus-visible {
-  outline: 2px solid var(--purple-primary);
-  outline-offset: 2px;
+.animate-slide-up {
+  animation: slideUp 0.3s ease-out;
 }
 
+.animate-scale-in {
+  animation: scaleIn 0.2s ease-out;
+}
+
+.table-row-animate {
+  animation: rowFadeIn 0.25s ease-out backwards;
+}
+
+/* Utility classes */
+.text-positive {
+  color: var(--accent-positive);
+}
+
+.text-negative {
+  color: var(--accent-negative);
+}
+
+.tabular-nums {
+  font-variant-numeric: tabular-nums;
+}
+
+.transition-colors-fast {
+  transition: color 0.15s ease, background-color 0.15s ease, border-color 0.15s ease;
+}
+
+/* Table row hover */
+.table-row-hover {
+  transition: background-color 0.15s ease;
+}
+
+.table-row-hover:hover {
+  background-color: var(--bg-hover);
+}
+
+/* Skeleton loader pulse animation */
+@keyframes pulse {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.5;
+  }
+}
+
+.animate-pulse {
+  animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+/* Brand accent bar - HSBC style */
+.brand-bar {
+  height: 3px;
+  background-color: var(--accent-primary);
+}
