@@ -57,3 +57,19 @@ export function formatPercentage(value: number, decimals: number = 2): string {
   const sign = value >= 0 ? '+' : '';
   return `${sign}${value.toFixed(decimals)}%`;
 }
+
+/**
+ * Formats market cap in readable form (e.g., "$1.50B", "$250.00M")
+ * @param value - Market cap in dollars
+ * @returns Formatted market cap string
+ */
+export function formatMarketCap(value: number | null): string {
+  if (value === null) return '—';
+  if (value >= 1_000_000_000) {
+    return `$${(value / 1_000_000_000).toFixed(2)}B`;
+  }
+  if (value >= 1_000_000) {
+    return `$${(value / 1_000_000).toFixed(2)}M`;
+  }
+  return `$${value.toLocaleString()}`;
+}

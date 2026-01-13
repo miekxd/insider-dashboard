@@ -113,6 +113,14 @@ const TableRow = memo(function TableRow({
         </span>
       </td>
       <td className="py-3 px-4">
+        <span
+          className="text-sm"
+          style={{ color: 'var(--text-secondary)' }}
+        >
+          {call.sector || '—'}
+        </span>
+      </td>
+      <td className="py-3 px-4">
         <RecommendationBadge recommendation={call.recommendation} />
       </td>
       <td className="py-3 px-4 text-right">
@@ -132,6 +140,9 @@ const TableRow = memo(function TableRow({
           style={{ color: 'var(--text-primary)' }}
         >
           {formatCurrency(call.current_price)}
+        </div>
+        <div className="text-xs mt-0.5" style={{ color: 'var(--text-tertiary)' }}>
+          {call.last_price_update ? formatDate(call.last_price_update) : '—'}
         </div>
       </td>
       <td className="py-3 px-4 text-right">
@@ -205,9 +216,10 @@ export const DataTable = memo(function DataTable({
               {showRank && <TableHeader className="w-12 text-center">#</TableHeader>}
               <TableHeader className="min-w-[100px]">Ticker</TableHeader>
               <TableHeader className="min-w-[180px]">Company</TableHeader>
+              <TableHeader className="min-w-[100px]">Sector</TableHeader>
               <TableHeader className="min-w-[100px]">Signal</TableHeader>
               <TableHeader className="text-right min-w-[100px]">Entry</TableHeader>
-              <TableHeader className="text-right min-w-[100px]">Current</TableHeader>
+              <TableHeader className="text-right min-w-[100px]">Current Price</TableHeader>
               <TableHeader className="text-right min-w-[90px]">Return</TableHeader>
               <TableHeader className="text-right min-w-[80px]">Days</TableHeader>
               <TableHeader className="w-10" />

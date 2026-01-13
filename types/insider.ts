@@ -27,6 +27,12 @@ export interface LLMCall {
   current_price: number | null;
   last_price_update: string | null;
   traded: boolean | null;
+  sector: string | null;
+  description: string | null;
+  exchange: string | null;
+  market_cap: number | null;
+  industry: string | null;
+  website: string | null;
 }
 
 export interface ParsedLLMCall extends Omit<LLMCall, 'transaction_dates' | 'insider_names' | 'market_patterns' | 'insider_prices_json'> {

@@ -5,7 +5,7 @@ import * as Dialog from '@radix-ui/react-dialog';
 import { X } from 'lucide-react';
 import { ParsedLLMCall } from '@/types/insider';
 import { getRecommendationStyle } from '@/lib/constants';
-import { formatDate, formatCurrency, formatCompactCurrency } from '@/lib/formatters';
+import { formatDate, formatCurrency, formatCompactCurrency, formatMarketCap } from '@/lib/formatters';
 import { calculatePnL, getHoldingDays } from '@/lib/calculations';
 import { ErrorBoundary } from './ErrorBoundary';
 
@@ -179,6 +179,47 @@ const ModalContent = memo(function ModalContent({
             {holdingDays}d held
           </div>
         </div>
+      </div>
+
+      {/* Company Info */}
+      <div className="mb-6">
+        <h3
+          className="text-xs font-semibold uppercase tracking-wider mb-3"
+          style={{ color: 'var(--text-tertiary)' }}
+        >
+          Company Info
+        </h3>
+        {call.description && call.description !== 'N/A' && (
+          <p
+            className="text-sm leading-relaxed mb-3"
+            style={{ color: 'var(--text-secondary)' }}
+          >
+            {call.description}
+          </p>
+        )}
+        <div className="grid grid-cols-2 gap-x-6 gap-y-2">
+          <dl className="space-y-2">
+            <DetailRow label="Exchange" value={call.exchange || '—'} />
+            <DetailRow label="Sector" value={call.sector || '—'} />
+          </dl>
+          <dl className="space-y-2">
+            <DetailRow label="Industry" value={call.industry || '—'} />
+            <DetailRow label="Market Cap" value={formatMarketCap(call.market_cap)} />
+          </dl>
+        </div>
+        {call.website && (
+          <div className="mt-3">
+            <a
+              href={call.website}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-sm hover:underline"
+              style={{ color: 'var(--purple-primary)' }}
+            >
+              {call.website}
+            </a>
+          </div>
+        )}
       </div>
 
       {/* Rationale */}
