@@ -112,12 +112,12 @@ body {
 }
 
 ::-webkit-scrollbar-thumb {
-  background: var(--accent-primary);
+  background: var(--border-secondary);
   border-radius: 2px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: var(--accent-primary-hover);
+  background: var(--text-tertiary);
 }
 
 /* Selection with brand color */
@@ -227,8 +227,3 @@ body {
   animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
 }
 
-/* Brand accent bar - HSBC style */
-.brand-bar {
-  height: 3px;
-  background-color: var(--accent-primary);
-}

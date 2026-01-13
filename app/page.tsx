@@ -57,9 +57,6 @@ export default function HomePage() {
 
   return (
     <div className="min-h-screen" style={{ backgroundColor: 'var(--bg-primary)' }}>
-      {/* Brand Bar */}
-      <div className="brand-bar" />
-
       {/* Header */}
       <header
         className="sticky top-0 z-40 border-b"
