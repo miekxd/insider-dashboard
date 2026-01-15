@@ -34,19 +34,12 @@ export function parseJSON<T>(value: unknown, defaultValue: T): T {
 /**
  * Calculates the P&L percentage for a position
  *
- * Uses pre-calculated price_change_pct if available,
- * otherwise computes from entry and current prices.
+ * Computes from entry and current prices.
  *
  * @param call - The LLM call data
  * @returns P&L percentage or null if cannot be calculated
  */
 export function calculatePnL(call: ParsedLLMCall): number | null {
-  // Use pre-calculated value if available
-  if (call.price_change_pct !== null && call.price_change_pct !== undefined) {
-    return call.price_change_pct;
-  }
-
-  // Calculate from prices
   if (!call.current_price || !call.entry_price) {
     return null;
   }
@@ -57,18 +50,12 @@ export function calculatePnL(call: ParsedLLMCall): number | null {
 /**
  * Calculates the number of days a position has been held
  *
- * Uses pre-calculated holding_days if available,
- * otherwise computes from entry date to today.
+ * Computes from entry date to today.
  *
  * @param call - The LLM call data
  * @returns Number of holding days or null
  */
 export function getHoldingDays(call: ParsedLLMCall): number | null {
-  // Use pre-calculated value if available
-  if (call.holding_days !== null && call.holding_days !== undefined) {
-    return call.holding_days;
-  }
-
   if (!call.entry_date) {
     return null;
   }
