@@ -213,6 +213,24 @@ export default function HomePage() {
         </ErrorBoundary>
       </main>
 
+      {/* Disclaimer Footer */}
+      <footer
+        className="border-t py-6"
+        style={{
+          backgroundColor: 'var(--bg-secondary)',
+          borderColor: 'var(--border-primary)',
+        }}
+      >
+        <div className="max-w-[1600px] mx-auto px-6 lg:px-8">
+          <p
+            className="text-xs text-center leading-relaxed"
+            style={{ color: 'var(--text-tertiary)' }}
+          >
+            This website provides automated analysis of publicly available SEC Form 4 filings for educational and informational purposes only. This is NOT investment advice. All investments carry risk. Past insider trading activity does not predict future stock performance. Consult a licensed financial advisor before making investment decisions. Data may contain errors or delays.
+          </p>
+        </div>
+      </footer>
+
       {/* Detail Modal */}
       <CallDetailModal
         call={selectedCall}
