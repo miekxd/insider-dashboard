@@ -1,4 +1,5 @@
 import type { Metadata, Viewport } from 'next';
+import Script from 'next/script';
 import { Sora, JetBrains_Mono, Inter } from 'next/font/google';
 import './globals.css';
 import { ThemeProvider } from '@/contexts/ThemeContext';
@@ -97,6 +98,9 @@ export default function RootLayout({
 }: {
   children: React.ReactNode;
 }) {
+  const umamiWebsiteId = process.env.NEXT_PUBLIC_UMAMI_WEBSITE_ID;
+  const umamiScriptUrl = process.env.NEXT_PUBLIC_UMAMI_SCRIPT_URL || 'https://umami.is/script.js';
+
   return (
     <html
       lang="en"
@@ -105,6 +109,15 @@ export default function RootLayout({
     >
       <body className="font-sans">
         <ThemeProvider>{children}</ThemeProvider>
+        {umamiWebsiteId && (
+          <Script
+            async
+            defer
+            data-website-id={umamiWebsiteId}
+            src={umamiScriptUrl}
+            strategy="afterInteractive"
+          />
+        )}
       </body>
     </html>
   );

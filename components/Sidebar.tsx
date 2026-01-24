@@ -48,10 +48,10 @@ export default function Sidebar() {
                   }}
                 >
                   <div className="flex items-center space-x-2">
-                    <Icon className="w-5 h-5" style={{ color: isActive ? 'var(--purple-primary)' : 'var(--text-secondary)' }} />
+                    <Icon className="w-5 h-5" style={{ color: isActive ? 'var(--accent-primary)' : 'var(--text-secondary)' }} />
                     <span 
                       className="text-sm font-medium"
-                      style={{ color: isActive ? 'var(--purple-primary)' : 'var(--text-primary)' }}
+                      style={{ color: isActive ? 'var(--accent-primary)' : 'var(--text-primary)' }}
                     >
                       {item.name}
                     </span>

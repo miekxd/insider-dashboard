@@ -120,7 +120,7 @@ const ModalContent = memo(function ModalContent({
 
       {/* Price Summary */}
       <div
-        className="grid grid-cols-3 gap-4 p-4 rounded-lg mb-6"
+        className="grid grid-cols-4 gap-4 p-4 rounded-lg mb-6"
         style={{ backgroundColor: 'var(--bg-secondary)' }}
       >
         <div>
@@ -179,6 +179,59 @@ const ModalContent = memo(function ModalContent({
             {holdingDays}d held
           </div>
         </div>
+        <div>
+          <div
+            className="text-xs font-medium mb-1"
+            style={{ color: 'var(--text-tertiary)' }}
+          >
+            Signal Score
+          </div>
+          {call.signal_strength !== null ? (
+            (() => {
+              // Detect scoring system based on value range
+              const isVersion1_5 = call.signal_strength > 10;
+              
+              let color: string;
+              if (isVersion1_5) {
+                // Version 1.5 scoring (out of 100): 40-60 yellow, 70-80 blue, 90-100 green
+                if (call.signal_strength >= 90) {
+                  color = 'var(--accent-positive)'; // green
+                } else if (call.signal_strength >= 70) {
+                  color = 'var(--accent-neutral)'; // blue
+                } else if (call.signal_strength >= 40) {
+                  color = 'var(--accent-warning)'; // yellow
+                } else {
+                  color = 'var(--accent-negative)'; // red
+                }
+              } else {
+                // Main page scoring (out of 10): 4-6 yellow, 7-8 blue, 9-10 green
+                if (call.signal_strength >= 9) {
+                  color = 'var(--accent-positive)'; // green
+                } else if (call.signal_strength >= 7) {
+                  color = 'var(--accent-neutral)'; // blue
+                } else if (call.signal_strength >= 4) {
+                  color = 'var(--accent-warning)'; // yellow
+                } else {
+                  color = 'var(--accent-negative)'; // red
+                }
+              }
+
+              return (
+                <div
+                  className="font-mono text-lg font-medium tabular-nums"
+                  style={{ color }}
+                >
+                  {isVersion1_5 ? Math.round(call.signal_strength) : Math.round(call.signal_strength)}
+                </div>
+              );
+            })()
+          ) : (
+            <div style={{ color: 'var(--text-tertiary)' }}>—</div>
+          )}
+          <div className="text-xs mt-0.5" style={{ color: 'var(--text-tertiary)' }}>
+            /{call.signal_strength !== null && call.signal_strength > 10 ? '100' : '10'}
+          </div>
+        </div>
       </div>
 
       {/* Company Info */}
@@ -214,7 +267,7 @@ const ModalContent = memo(function ModalContent({
               target="_blank"
               rel="noopener noreferrer"
               className="text-sm hover:underline"
-              style={{ color: 'var(--purple-primary)' }}
+              style={{ color: 'var(--accent-neutral)' }}
             >
               {call.website}
             </a>
