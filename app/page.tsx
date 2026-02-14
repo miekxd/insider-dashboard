@@ -1,11 +1,12 @@
 'use client';
 
 import { useState, useCallback } from 'react';
-import { RefreshCw, X, Sun, Moon, Activity } from 'lucide-react';
+import Link from 'next/link';
+import { RefreshCw, X, Sun, Moon, Activity, Layers } from 'lucide-react';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useLLMCalls } from '@/hooks/useLLMCalls';
 import { ParsedLLMCall } from '@/types/insider';
-import { FILTER_OPTIONS, FilterType } from '@/lib/constants';
+import { FILTER_OPTIONS, FilterType, VERSION_LINKS } from '@/lib/constants';
 import { formatCompactCurrency } from '@/lib/formatters';
 
 // Components
@@ -85,6 +86,29 @@ export default function HomePage() {
 
             {/* Actions */}
             <div className="flex items-center gap-2">
+              {VERSION_LINKS.length > 0 && (
+                <div className="flex items-center gap-1">
+                  <Layers
+                    className="w-3.5 h-3.5"
+                    style={{ color: 'var(--text-tertiary)' }}
+                    aria-hidden
+                  />
+                  {VERSION_LINKS.map((v) => (
+                    <Link
+                      key={v.path}
+                      href={v.path}
+                      className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium rounded transition-colors hover:opacity-80"
+                      style={{
+                        backgroundColor: 'var(--bg-tertiary)',
+                        color: 'var(--text-secondary)',
+                      }}
+                      title={`Open ${v.label}`}
+                    >
+                      {v.label}
+                    </Link>
+                  ))}
+                </div>
+              )}
               <button
                 onClick={refresh}
                 disabled={loading || isRefreshDisabled}

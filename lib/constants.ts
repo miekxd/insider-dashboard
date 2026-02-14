@@ -36,6 +36,13 @@ export const TOP_LIST_LIMIT = 20;
 export const REFRESH_DEBOUNCE_MS = 2000;
 
 /**
+ * Other dashboard versions (main page is "current")
+ */
+export const VERSION_LINKS: { path: string; label: string }[] = [
+  { path: '/versions/1.5', label: 'v1.5' },
+];
+
+/**
  * Recommendation types
  */
 export const RECOMMENDATIONS = {
