@@ -80,7 +80,7 @@ export function useLLMCalls1_5(): UseLLMCalls1_5Return {
       setError('');
 
       const { data, error: fetchError } = await supabase
-        .from('llm_calls_1.5')
+        .from('llm_calls_15')
         .select('*')
         .order('entry_date', { ascending: false });
 
