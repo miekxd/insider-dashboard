@@ -2,7 +2,7 @@
 
 import { useState, useCallback } from 'react';
 import Link from 'next/link';
-import { RefreshCw, X, Sun, Moon, Activity, Layers } from 'lucide-react';
+import { RefreshCw, X, Sun, Moon, Activity, Layers, Network } from 'lucide-react';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useLLMCalls } from '@/hooks/useLLMCalls';
 import { ParsedLLMCall } from '@/types/insider';
@@ -86,6 +86,19 @@ export default function HomePage() {
 
             {/* Actions */}
             <div className="flex items-center gap-2">
+              {/* Graph link */}
+              <Link
+                href="/graph"
+                className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium rounded transition-colors hover:opacity-80"
+                style={{
+                  backgroundColor: 'var(--bg-tertiary)',
+                  color: 'var(--text-secondary)',
+                }}
+                title="Open Insider Network Graph"
+              >
+                <Network className="w-3.5 h-3.5" />
+                <span className="hidden sm:inline">Network</span>
+              </Link>
               {VERSION_LINKS.length > 0 && (
                 <div className="flex items-center gap-1">
                   <Layers
