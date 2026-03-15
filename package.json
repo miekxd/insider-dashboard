@@ -12,6 +12,7 @@
   "dependencies": {
     "@radix-ui/react-dialog": "^1.1.15",
     "@radix-ui/react-tooltip": "^1.2.8",
+    "@sigma/node-border": "^3.0.0",
     "@supabase/ssr": "^0.5.2",
     "@supabase/supabase-js": "^2.45.7",
     "@types/d3": "^7.4.3",

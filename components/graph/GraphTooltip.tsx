@@ -87,7 +87,7 @@ export const GraphTooltip = memo(function GraphTooltip({ data, position }: Graph
     const a = data.attrs;
     const entityColor = ENTITY_COLORS[a.entity_type] ?? '#6B6966';
     const tier = (!a.insider_tier || a.insider_tier === 'UNKNOWN') ? null : a.insider_tier;
-    const tierColor = tier ? getTierColor(tier) : null;
+    const tierColor = tier ? getTierColor(tier) : undefined;
     return (
       <div style={tooltipStyle}>
         <div className="flex items-start justify-between gap-2 mb-2">

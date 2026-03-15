@@ -4,12 +4,14 @@ import React, { useEffect, useRef, useCallback, memo } from 'react';
 import Graph from 'graphology';
 import Sigma from 'sigma';
 import { MouseCoords } from 'sigma/types';
+import { createNodeBorderProgram } from '@sigma/node-border';
 import forceAtlas2 from 'graphology-layout-forceatlas2';
 import { InsiderNodeAttributes, CompanyNodeAttributes, EdgeAttributes } from '@/types/graph';
 import {
-  COMPANY_COLOR, ENTITY_COLORS,
-  COMPANY_COLOR_BRIGHT, ENTITY_COLORS_BRIGHT,
-  DIM_COLOR, DIM_EDGE_COLOR,
+  COMPANY_COLOR, COMPANY_COLOR_BRIGHT,
+  TIER_COLORS_BRIGHT, getTierColor, getTierColorBright,
+  ROLE_COLORS_BRIGHT, getRoleColorBright,
+  DIM_COLOR, DIM_EDGE_COLOR, DIM_BORDER_COLOR,
 } from '@/lib/graphColors';
 import { TooltipData } from './GraphTooltip';
 
@@ -173,13 +175,24 @@ function applyFA2(graph: Graph) {
   }));
 }
 
-function brightColor(attrs: any): string {
+// Fill color = tier (for insiders) or company blue
+function brightFill(attrs: any): string {
   if (attrs.nodeType === 'company') return COMPANY_COLOR_BRIGHT;
-  return ENTITY_COLORS_BRIGHT[attrs.entity_type as keyof typeof ENTITY_COLORS_BRIGHT] ?? ENTITY_COLORS_BRIGHT.UNKNOWN;
+  return getTierColorBright(attrs.insider_tier);
 }
-function baseColor(attrs: any): string {
+function baseFill(attrs: any): string {
   if (attrs.nodeType === 'company') return COMPANY_COLOR;
-  return ENTITY_COLORS[attrs.entity_type as keyof typeof ENTITY_COLORS] ?? ENTITY_COLORS.UNKNOWN;
+  return getTierColor(attrs.insider_tier);
+}
+
+// Border color = role type (for insiders) or transparent for companies
+function brightBorder(attrs: any): string {
+  if (attrs.nodeType === 'company') return COMPANY_COLOR_BRIGHT;
+  return getRoleColorBright(attrs.entity_type);
+}
+function baseBorder(attrs: any): string {
+  if (attrs.nodeType === 'company') return COMPANY_COLOR;
+  return getRoleColorBright(attrs.entity_type);
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -190,9 +203,10 @@ interface InsiderGraphProps {
   graph: Graph;
   searchQuery: string;
   onTooltip: (data: TooltipData | null, position: { x: number; y: number }) => void;
+  onNodeClick?: (data: TooltipData) => void;
 }
 
-export const InsiderGraph = memo(function InsiderGraph({ graph, searchQuery, onTooltip }: InsiderGraphProps) {
+export const InsiderGraph = memo(function InsiderGraph({ graph, searchQuery, onTooltip, onNodeClick }: InsiderGraphProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const sigmaRef     = useRef<Sigma | null>(null);
   const simRef       = useRef<SpringSim | null>(null);
@@ -200,6 +214,7 @@ export const InsiderGraph = memo(function InsiderGraph({ graph, searchQuery, onT
   const hoveredNode  = useRef<string | null>(null);
   const draggedNode  = useRef<string | null>(null);
   const isDragging   = useRef(false);
+  const dragDidMove  = useRef(false);
   const origSize     = useRef(4);
   const lastDragPos  = useRef<{ x: number; y: number } | null>(null);
   const dragVelocity = useRef<{ vx: number; vy: number }>({ vx: 0, vy: 0 });
@@ -232,7 +247,12 @@ export const InsiderGraph = memo(function InsiderGraph({ graph, searchQuery, onT
     const dim = hovered !== null || q !== '';
     g.updateEachNodeAttributes((key, attrs: any) => {
       const lit = !dim || litNodes.has(key);
-      return { ...attrs, color: lit ? brightColor(attrs) : DIM_COLOR, zIndex: lit ? (key === hovered ? 10 : 1) : 0 };
+      return {
+        ...attrs,
+        color:       lit ? brightFill(attrs)   : DIM_COLOR,
+        borderColor: lit ? brightBorder(attrs) : DIM_BORDER_COLOR,
+        zIndex: lit ? (key === hovered ? 10 : 1) : 0,
+      };
     });
     g.updateEachEdgeAttributes((key, attrs) => {
       const lit = !dim || litEdges.has(key);
@@ -246,13 +266,26 @@ export const InsiderGraph = memo(function InsiderGraph({ graph, searchQuery, onT
 
     // 1. FA2 initial layout
     applyFA2(graph);
-    graph.updateEachNodeAttributes((_, attrs: any) => ({ ...attrs, color: baseColor(attrs) }));
+    graph.updateEachNodeAttributes((_, attrs: any) => ({
+      ...attrs,
+      color: baseFill(attrs),
+      borderColor: baseBorder(attrs),
+    }));
     graph.updateEachEdgeAttributes((_, attrs) => ({ ...attrs, color: '#333333' }));
 
-    // 2. Sigma — no nodeReducer; sim writes positions directly to graph attributes
+    // 2. Sigma — border node program: fill=tier color, border=role color
+    const NodeBorderProgram = createNodeBorderProgram({
+      borders: [
+        { size: { value: 0.15 }, color: { attribute: 'borderColor' } },
+        { size: { fill: true },  color: { attribute: 'color' } },
+      ],
+    });
+
     const renderer = new Sigma(graph, containerRef.current, {
       renderEdgeLabels: false,
       defaultEdgeType: 'arrow',
+      defaultNodeType: 'bordered',
+      nodeProgramClasses: { bordered: NodeBorderProgram },
       labelFont: 'JetBrains Mono, monospace',
       labelSize: 10,
       labelWeight: '500',
@@ -298,6 +331,7 @@ export const InsiderGraph = memo(function InsiderGraph({ graph, searchQuery, onT
     // ── Drag ──────────────────────────────────────────────────────────────
     renderer.on('downNode', ({ node }) => {
       isDragging.current  = true;
+      dragDidMove.current = false;
       draggedNode.current = node;
       lastDragPos.current  = null;
       dragVelocity.current = { vx: 0, vy: 0 };
@@ -310,9 +344,10 @@ export const InsiderGraph = memo(function InsiderGraph({ graph, searchQuery, onT
       sim.pin(node, sn.x, sn.y);
       sim.reheat(0.7);
 
-      graph.setNodeAttribute(node, 'size',   origSize.current * 1.5);
-      graph.setNodeAttribute(node, 'color',  brightColor(attrs));
-      graph.setNodeAttribute(node, 'zIndex', 100);
+      graph.setNodeAttribute(node, 'size',        origSize.current * 1.5);
+      graph.setNodeAttribute(node, 'color',       brightFill(attrs));
+      graph.setNodeAttribute(node, 'borderColor', brightBorder(attrs));
+      graph.setNodeAttribute(node, 'zIndex',      100);
 
       onTooltip(null, { x: 0, y: 0 });
       setCursor('grabbing');
@@ -326,14 +361,18 @@ export const InsiderGraph = memo(function InsiderGraph({ graph, searchQuery, onT
 
       // Track velocity: delta between this frame and the last
       if (lastDragPos.current) {
-        dragVelocity.current = {
-          vx: pos.x - lastDragPos.current.x,
-          vy: pos.y - lastDragPos.current.y,
-        };
+        const dvx = pos.x - lastDragPos.current.x;
+        const dvy = pos.y - lastDragPos.current.y;
+        dragVelocity.current = { vx: dvx, vy: dvy };
+        if (Math.hypot(dvx, dvy) > 0.1) dragDidMove.current = true;
       }
       lastDragPos.current = { x: pos.x, y: pos.y };
 
-      // Update sim pinned position — onTick handles all rendering uniformly
+      // Directly write dragged node position so it tracks cursor with zero sim lag
+      graph.setNodeAttribute(draggedNode.current, 'x', pos.x);
+      graph.setNodeAttribute(draggedNode.current, 'y', pos.y);
+
+      // Update sim pinned position — onTick handles connected-node rendering
       sim.move(draggedNode.current, pos.x, pos.y);
       // Keep sim hot for the entire drag so connected nodes keep springing
       sim.reheat(0.4);
@@ -413,6 +452,18 @@ export const InsiderGraph = memo(function InsiderGraph({ graph, searchQuery, onT
     renderer.on('leaveEdge', () => {
       if (isDragging.current) return;
       onTooltip(null, { x: 0, y: 0 });
+    });
+
+    // ── Click (open detail panel) ──────────────────────────────────────────
+    renderer.on('clickNode', ({ node }) => {
+      // Ignore clicks that were actually drag-releases
+      if (isDragging.current || dragDidMove.current) {
+        dragDidMove.current = false;
+        return;
+      }
+      const attrs = graph.getNodeAttributes(node) as any;
+      if (attrs.nodeType !== 'insider') return;
+      onNodeClick?.({ type: 'insider', attrs: attrs as InsiderNodeAttributes });
     });
 
     return () => {

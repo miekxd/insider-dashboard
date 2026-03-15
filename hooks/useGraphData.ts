@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import Graph from 'graphology';
 import { createClient } from '@/lib/supabase/client';
 import { GraphRow, GraphFilters, InsiderNodeAttributes, CompanyNodeAttributes, EdgeAttributes } from '@/types/graph';
-import { getEntityColor, COMPANY_COLOR } from '@/lib/graphColors';
+import { getTierColor, getRoleColor, COMPANY_COLOR } from '@/lib/graphColors';
 
 function tierSizeBoost(tier: string | null | undefined): number {
   if (tier === 'ELITE') return 2.0;
@@ -178,7 +178,8 @@ export function useGraphData(filters: GraphFilters): UseGraphDataReturn {
             x: Math.random() * 100,
             y: Math.random() * 100,
             size: insiderSize(row.total_buy_value, row.insider_tier),
-            color: getEntityColor(row.entity_type),
+            color: getTierColor(row.insider_tier),
+            borderColor: getRoleColor(row.entity_type),
           };
           g.addNode(insiderKey, attrs);
         }
@@ -197,6 +198,7 @@ export function useGraphData(filters: GraphFilters): UseGraphDataReturn {
             y: Math.random() * 100,
             size: companySize(row.unique_insiders_bought),
             color: COMPANY_COLOR,
+            borderColor: COMPANY_COLOR,
           };
           g.addNode(companyKey, attrs);
         }

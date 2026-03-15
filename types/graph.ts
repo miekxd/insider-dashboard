@@ -47,6 +47,7 @@ export interface InsiderNodeAttributes {
   y: number;
   size: number;
   color: string;
+  borderColor: string;
 }
 
 export interface CompanyNodeAttributes {
@@ -62,6 +63,7 @@ export interface CompanyNodeAttributes {
   y: number;
   size: number;
   color: string;
+  borderColor: string;
 }
 
 export type NodeAttributes = InsiderNodeAttributes | CompanyNodeAttributes;

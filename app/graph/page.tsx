@@ -11,6 +11,8 @@ import { GraphControls } from '@/components/graph/GraphControls';
 import { ClusterPanel } from '@/components/graph/ClusterPanel';
 import { GraphLegend } from '@/components/graph/GraphLegend';
 import { GraphTooltip, TooltipData } from '@/components/graph/GraphTooltip';
+import { InsiderDetailPanel } from '@/components/graph/InsiderDetailPanel';
+import { InsiderNodeAttributes } from '@/types/graph';
 
 // Dynamically import Sigma-backed component (no SSR — canvas requires browser)
 const InsiderGraph = dynamic(
@@ -30,6 +32,7 @@ export default function GraphPage() {
   const [filters, setFilters] = useState<GraphFilters>(DEFAULT_FILTERS);
   const [tooltipData, setTooltipData] = useState<TooltipData | null>(null);
   const [tooltipPos, setTooltipPos] = useState({ x: 0, y: 0 });
+  const [selectedInsider, setSelectedInsider] = useState<InsiderNodeAttributes | null>(null);
 
   // Filters that actually trigger refetch (exclude search — that's client-side highlight)
   const fetchFilters = useMemo(() => ({
@@ -46,6 +49,10 @@ export default function GraphPage() {
 
   const handleClusterHighlight = useCallback((ticker: string) => {
     setFilters((prev) => ({ ...prev, search: ticker }));
+  }, []);
+
+  const handleNodeClick = useCallback((data: TooltipData) => {
+    if (data.type === 'insider') setSelectedInsider(data.attrs);
   }, []);
 
   // Track mouse for tooltip repositioning
@@ -157,10 +164,16 @@ export default function GraphPage() {
               graph={graph}
               searchQuery={filters.search}
               onTooltip={handleTooltip}
+              onNodeClick={handleNodeClick}
             />
           )}
 
           <GraphLegend />
+
+          <InsiderDetailPanel
+            attrs={selectedInsider}
+            onClose={() => setSelectedInsider(null)}
+          />
         </div>
       </div>
 
