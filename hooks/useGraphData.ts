@@ -6,9 +6,17 @@ import { createClient } from '@/lib/supabase/client';
 import { GraphRow, GraphFilters, InsiderNodeAttributes, CompanyNodeAttributes, EdgeAttributes } from '@/types/graph';
 import { getEntityColor, COMPANY_COLOR } from '@/lib/graphColors';
 
-function insiderSize(totalBuyValue: number): number {
-  if (!totalBuyValue || totalBuyValue <= 0) return 2;
-  return Math.max(2, Math.min(5, Math.log10(totalBuyValue / 50000) * 1.5 + 2));
+function tierSizeBoost(tier: string | null | undefined): number {
+  if (tier === 'ELITE') return 2.0;
+  if (tier === 'STRONG') return 1.5;
+  if (tier === 'AVERAGE') return 1.2;
+  return 1.0;
+}
+
+function insiderSize(totalBuyValue: number, tier?: string | null): number {
+  if (!totalBuyValue || totalBuyValue <= 0) return 2 * tierSizeBoost(tier);
+  const base = Math.max(2, Math.min(5, Math.log10(totalBuyValue / 50000) * 1.5 + 2));
+  return Math.min(8, base * tierSizeBoost(tier));
 }
 
 function companySize(uniqueInsiders: number): number {
@@ -169,7 +177,7 @@ export function useGraphData(filters: GraphFilters): UseGraphDataReturn {
             insider_tier: row.insider_tier,
             x: Math.random() * 100,
             y: Math.random() * 100,
-            size: insiderSize(row.total_buy_value),
+            size: insiderSize(row.total_buy_value, row.insider_tier),
             color: getEntityColor(row.entity_type),
           };
           g.addNode(insiderKey, attrs);

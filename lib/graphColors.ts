@@ -23,6 +23,19 @@ export const COMPANY_COLOR_BRIGHT = '#3B9EF5';
 
 export const CLUSTER_PULSE_COLOR = '#E8A020'; // amber for coordinated clusters
 
+export const TIER_COLORS: Record<string, string> = {
+  ELITE:         '#F5C842', // gold
+  STRONG:        '#22C55E', // green
+  AVERAGE:       '#60A5FA', // blue
+  UNDERPERFORMER:'#F87171', // red
+  UNKNOWN:       '#6B6966', // muted
+};
+
+export function getTierColor(tier: string | null | undefined): string {
+  if (!tier) return TIER_COLORS.UNKNOWN;
+  return TIER_COLORS[tier] ?? TIER_COLORS.UNKNOWN;
+}
+
 // Dimmed color when another node is focused
 export const DIM_COLOR = '#2A2A2A';
 export const DIM_EDGE_COLOR = '#1F1F1F';

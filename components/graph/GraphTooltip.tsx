@@ -2,7 +2,7 @@
 
 import React, { memo } from 'react';
 import { InsiderNodeAttributes, CompanyNodeAttributes, EdgeAttributes } from '@/types/graph';
-import { ENTITY_COLORS } from '@/lib/graphColors';
+import { ENTITY_COLORS, getTierColor } from '@/lib/graphColors';
 
 interface TooltipPosition {
   x: number;
@@ -87,18 +87,29 @@ export const GraphTooltip = memo(function GraphTooltip({ data, position }: Graph
     const a = data.attrs;
     const entityColor = ENTITY_COLORS[a.entity_type] ?? '#6B6966';
     const tier = (!a.insider_tier || a.insider_tier === 'UNKNOWN') ? null : a.insider_tier;
+    const tierColor = tier ? getTierColor(tier) : null;
     return (
       <div style={tooltipStyle}>
         <div className="flex items-start justify-between gap-2 mb-2">
           <span className="text-xs font-semibold leading-tight" style={{ color: 'var(--text-primary)' }}>
             {a.canonical_name}
           </span>
-          <span
-            className="text-xs px-1.5 py-0.5 rounded shrink-0"
-            style={{ backgroundColor: entityColor + '22', color: entityColor, fontWeight: 600 }}
-          >
-            {entityLabel(a.entity_type)}
-          </span>
+          <div className="flex items-center gap-1 shrink-0">
+            {tier && (
+              <span
+                className="text-xs px-1.5 py-0.5 rounded"
+                style={{ backgroundColor: tierColor + '25', color: tierColor, fontWeight: 700, letterSpacing: '0.02em' }}
+              >
+                {tier}
+              </span>
+            )}
+            <span
+              className="text-xs px-1.5 py-0.5 rounded"
+              style={{ backgroundColor: entityColor + '22', color: entityColor, fontWeight: 600 }}
+            >
+              {entityLabel(a.entity_type)}
+            </span>
+          </div>
         </div>
         <Divider />
         <div className="flex flex-col gap-1">
@@ -107,7 +118,6 @@ export const GraphTooltip = memo(function GraphTooltip({ data, position }: Graph
           <Row label="Transactions" value={a.total_buy_transactions} />
           <Row label="Buy/Sell ratio" value={a.buy_sell_ratio != null ? a.buy_sell_ratio.toFixed(1) : '—'} />
           <Row label="Active" value={`${formatDate(a.active_since)} → ${formatDate(a.last_transaction_date)}`} />
-          {tier && <Row label="Tier" value={tier} />}
         </div>
       </div>
     );
