@@ -1,484 +1,320 @@
 'use client';
 
 import React, { useEffect, useRef, useCallback, memo } from 'react';
-import Graph from 'graphology';
-import Sigma from 'sigma';
-import { MouseCoords } from 'sigma/types';
-import { createNodeBorderProgram } from '@sigma/node-border';
-import forceAtlas2 from 'graphology-layout-forceatlas2';
-import { InsiderNodeAttributes, CompanyNodeAttributes, EdgeAttributes } from '@/types/graph';
-import {
-  COMPANY_COLOR, COMPANY_COLOR_BRIGHT,
-  TIER_COLORS_BRIGHT, getTierColor, getTierColorBright,
-  ROLE_COLORS_BRIGHT, getRoleColorBright,
-  DIM_COLOR, DIM_EDGE_COLOR, DIM_BORDER_COLOR,
-} from '@/lib/graphColors';
+import * as d3 from 'd3';
+import { D3Node, D3InsiderNode, D3CompanyNode, D3Link } from '@/types/graph';
+import { DIM_COLOR, DIM_EDGE_COLOR, DIM_BORDER_COLOR } from '@/lib/graphColors';
 import { TooltipData } from './GraphTooltip';
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Spring physics simulation
-//
-// Each node has position + velocity. Every tick:
-//   - All node pairs repel (inverse-square charge force)
-//   - Connected nodes attract (Hooke spring along each edge)
-//   - Weak gravity toward origin prevents drift
-//   - Velocity decays by DAMPING factor
-//
-// Alpha = "heat". Decays each tick. Physics stops when cool.
-// Call reheat() to wake the sim back up (e.g. on drag start/end).
-// Pinned nodes are held at a fixed position — everything else springs around them.
-// ─────────────────────────────────────────────────────────────────────────────
-
-interface SimNode {
-  x: number; y: number;
-  vx: number; vy: number;
-  mass: number;
-  pinned: boolean;
-}
-
-class SpringSim {
-  nodes = new Map<string, SimNode>();
-  private edges: [string, string][] = [];
-  private alpha = 0;
-  private rafId: number | null = null;
-  private readonly onTick: () => void;
-
-  private readonly REPULSION   = 80;
-  private readonly SPRING_K    = 0.04;
-  private readonly SPRING_LEN  = 8;
-  private readonly DAMPING     = 0.75;
-  private readonly GRAVITY     = 0.008;
-  private readonly ALPHA_DECAY = 0.010;
-  private readonly ALPHA_MIN   = 0.001;
-
-  constructor(onTick: () => void) { this.onTick = onTick; }
-
-  load(graph: Graph) {
-    this.nodes.clear();
-    this.edges = [];
-    graph.forEachNode((key, attrs: any) => {
-      this.nodes.set(key, {
-        x: attrs.x ?? 0, y: attrs.y ?? 0,
-        vx: 0, vy: 0,
-        mass: Math.max(1, attrs.size ?? 4),
-        pinned: false,
-      });
-    });
-    graph.forEachEdge((_, __, s, t) => this.edges.push([s, t]));
-  }
-
-  reheat(alpha = 0.5) {
-    this.alpha = Math.max(this.alpha, alpha);
-    if (!this.isRunning()) this.start();
-  }
-
-  pin(key: string, x: number, y: number) {
-    const n = this.nodes.get(key);
-    if (!n) return;
-    n.pinned = true; n.x = x; n.y = y; n.vx = 0; n.vy = 0;
-  }
-
-  move(key: string, x: number, y: number) {
-    const n = this.nodes.get(key);
-    if (n?.pinned) { n.x = x; n.y = y; }
-  }
-
-  unpin(key: string) {
-    const n = this.nodes.get(key);
-    if (n) n.pinned = false;
-  }
-
-  isRunning() { return this.rafId !== null; }
-
-  start() {
-    if (this.rafId !== null) return;
-    const tick = () => {
-      this.step();
-      this.onTick();
-      if (this.alpha > this.ALPHA_MIN) {
-        this.rafId = requestAnimationFrame(tick);
-      } else {
-        this.rafId = null;
-      }
-    };
-    this.rafId = requestAnimationFrame(tick);
-  }
-
-  stop() {
-    if (this.rafId !== null) { cancelAnimationFrame(this.rafId); this.rafId = null; }
-    this.alpha = 0;
-  }
-
-  private step() {
-    const entries = [...this.nodes.entries()];
-    const N = entries.length;
-
-    // Repulsion — all pairs
-    for (let i = 0; i < N; i++) {
-      const [, a] = entries[i];
-      for (let j = i + 1; j < N; j++) {
-        const [, b] = entries[j];
-        const dx = b.x - a.x, dy = b.y - a.y;
-        const d2 = dx * dx + dy * dy + 0.01;
-        const d  = Math.sqrt(d2);
-        const f  = (this.REPULSION * this.alpha) / d2;
-        const fx = f * dx / d, fy = f * dy / d;
-        if (!a.pinned) { a.vx -= fx / a.mass; a.vy -= fy / a.mass; }
-        if (!b.pinned) { b.vx += fx / b.mass; b.vy += fy / b.mass; }
-      }
-    }
-
-    // Springs — along edges
-    for (const [sk, tk] of this.edges) {
-      const s = this.nodes.get(sk), t = this.nodes.get(tk);
-      if (!s || !t) continue;
-      const dx = t.x - s.x, dy = t.y - s.y;
-      const d  = Math.sqrt(dx * dx + dy * dy) + 0.01;
-      const f  = this.SPRING_K * (d - this.SPRING_LEN) * this.alpha;
-      const fx = f * dx / d, fy = f * dy / d;
-      if (!s.pinned) { s.vx += fx; s.vy += fy; }
-      if (!t.pinned) { t.vx -= fx; t.vy -= fy; }
-    }
-
-    // Gravity toward origin
-    for (const [, n] of entries) {
-      if (!n.pinned) {
-        n.vx -= n.x * this.GRAVITY * this.alpha;
-        n.vy -= n.y * this.GRAVITY * this.alpha;
-      }
-    }
-
-    // Integrate
-    for (const [, n] of entries) {
-      if (n.pinned) continue;
-      n.vx *= this.DAMPING; n.vy *= this.DAMPING;
-      n.x  += n.vx;        n.y  += n.vy;
-    }
-
-    this.alpha -= this.ALPHA_DECAY;
-  }
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Helpers
-// ─────────────────────────────────────────────────────────────────────────────
-
-function applyFA2(graph: Graph) {
-  const positions = forceAtlas2(graph, {
-    iterations: 200,
-    settings: { adjustSizes: true, edgeWeightInfluence: 1, scalingRatio: 4, strongGravityMode: true, gravity: 0.5, barnesHutOptimize: true },
-  });
-  graph.updateEachNodeAttributes((node, attrs) => ({
-    ...attrs,
-    x: positions[node]?.x ?? attrs.x,
-    y: positions[node]?.y ?? attrs.y,
-  }));
-}
-
-// Fill color = tier (for insiders) or company blue
-function brightFill(attrs: any): string {
-  if (attrs.nodeType === 'company') return COMPANY_COLOR_BRIGHT;
-  return getTierColorBright(attrs.insider_tier);
-}
-function baseFill(attrs: any): string {
-  if (attrs.nodeType === 'company') return COMPANY_COLOR;
-  return getTierColor(attrs.insider_tier);
-}
-
-// Border color = role type (for insiders) or transparent for companies
-function brightBorder(attrs: any): string {
-  if (attrs.nodeType === 'company') return COMPANY_COLOR_BRIGHT;
-  return getRoleColorBright(attrs.entity_type);
-}
-function baseBorder(attrs: any): string {
-  if (attrs.nodeType === 'company') return COMPANY_COLOR;
-  return getRoleColorBright(attrs.entity_type);
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Component
-// ─────────────────────────────────────────────────────────────────────────────
-
 interface InsiderGraphProps {
-  graph: Graph;
+  nodes: D3Node[];
+  links: D3Link[];
   searchQuery: string;
   onTooltip: (data: TooltipData | null, position: { x: number; y: number }) => void;
   onNodeClick?: (data: TooltipData) => void;
 }
 
-export const InsiderGraph = memo(function InsiderGraph({ graph, searchQuery, onTooltip, onNodeClick }: InsiderGraphProps) {
-  const containerRef = useRef<HTMLDivElement>(null);
-  const sigmaRef     = useRef<Sigma | null>(null);
-  const simRef       = useRef<SpringSim | null>(null);
+function resolvedId(d: D3Node | string | number): string {
+  if (typeof d === 'object' && d !== null) return (d as D3Node).id;
+  return String(d);
+}
 
-  const hoveredNode  = useRef<string | null>(null);
-  const draggedNode  = useRef<string | null>(null);
-  const isDragging   = useRef(false);
-  const dragDidMove  = useRef(false);
-  const origSize     = useRef(4);
-  const lastDragPos  = useRef<{ x: number; y: number } | null>(null);
-  const dragVelocity = useRef<{ vx: number; vy: number }>({ vx: 0, vy: 0 });
+export const InsiderGraph = memo(function InsiderGraph({
+  nodes,
+  links,
+  searchQuery,
+  onTooltip,
+  onNodeClick,
+}: InsiderGraphProps) {
+  const svgRef     = useRef<SVGSVGElement>(null);
+  const zoomRef    = useRef<d3.ZoomBehavior<SVGSVGElement, unknown> | null>(null);
+  const simRef     = useRef<d3.Simulation<D3Node, D3Link> | null>(null);
+  const nodesRef   = useRef<D3Node[]>([]);
+  const linksRef   = useRef<D3Link[]>([]);
+  const hoveredRef = useRef<string | null>(null);
+  const searchRef  = useRef(searchQuery);
 
-  const setCursor = (c: string) => {
-    if (containerRef.current) containerRef.current.style.cursor = c;
-  };
+  const onTooltipRef  = useRef(onTooltip);
+  const onNodeClickRef = useRef(onNodeClick);
+  useEffect(() => { onTooltipRef.current = onTooltip; }, [onTooltip]);
+  useEffect(() => { onNodeClickRef.current = onNodeClick; }, [onNodeClick]);
+  useEffect(() => { searchRef.current = searchQuery; }, [searchQuery]);
 
-  const updateColors = useCallback((sigma: Sigma, hovered: string | null, search: string) => {
-    const g = sigma.getGraph();
-    const q = search.toLowerCase();
+  // ── Highlight ───────────────────────────────────────────────────────────────
+  const applyHighlight = useCallback((
+    svgEl: SVGSVGElement | null,
+    hovered: string | null,
+    search: string,
+  ) => {
+    if (!svgEl) return;
+    const svg = d3.select(svgEl);
+    const q = search.toLowerCase().trim();
     const litNodes = new Set<string>();
-    const litEdges = new Set<string>();
+    const litLinks  = new Set<string>();
 
     if (hovered) {
       litNodes.add(hovered);
-      g.forEachNeighbor(hovered, n => litNodes.add(n));
-      g.forEachEdge(hovered, e => litEdges.add(e));
+      linksRef.current.forEach(l => {
+        const src = resolvedId(l.source), tgt = resolvedId(l.target);
+        if (src === hovered) { litNodes.add(tgt); litLinks.add(l.id); }
+        if (tgt === hovered) { litNodes.add(src); litLinks.add(l.id); }
+      });
     }
     if (q) {
-      g.forEachNode((key, attrs: any) => {
-        if ((attrs.label ?? '').toLowerCase().includes(q) || (attrs.ticker ?? '').toLowerCase().includes(q)) {
-          litNodes.add(key);
-          g.forEachNeighbor(key, n => litNodes.add(n));
-          g.forEachEdge(key, e => litEdges.add(e));
+      nodesRef.current.forEach(n => {
+        const hit = n.label.toLowerCase().includes(q) ||
+          (n.nodeType === 'company' && n.ticker.toLowerCase().includes(q));
+        if (hit) {
+          litNodes.add(n.id);
+          linksRef.current.forEach(l => {
+            const src = resolvedId(l.source), tgt = resolvedId(l.target);
+            if (src === n.id) { litNodes.add(tgt); litLinks.add(l.id); }
+            if (tgt === n.id) { litNodes.add(src); litLinks.add(l.id); }
+          });
         }
       });
     }
 
     const dim = hovered !== null || q !== '';
-    g.updateEachNodeAttributes((key, attrs: any) => {
-      const lit = !dim || litNodes.has(key);
-      return {
-        ...attrs,
-        color:       lit ? brightFill(attrs)   : DIM_COLOR,
-        borderColor: lit ? brightBorder(attrs) : DIM_BORDER_COLOR,
-        zIndex: lit ? (key === hovered ? 10 : 1) : 0,
-      };
-    });
-    g.updateEachEdgeAttributes((key, attrs) => {
-      const lit = !dim || litEdges.has(key);
-      return { ...attrs, color: lit ? '#555555' : DIM_EDGE_COLOR, zIndex: lit ? 1 : 0 };
-    });
-    sigma.refresh();
+
+    svg.selectAll<Element, D3Node>('.node-shape')
+      .attr('fill',   d => (!dim || litNodes.has(d.id)) ? d.fill   : DIM_COLOR)
+      .attr('stroke', d => (!dim || litNodes.has(d.id)) ? d.stroke : DIM_BORDER_COLOR);
+
+    svg.selectAll<Element, D3Node>('.node-label')
+      .attr('opacity', d => (!dim || litNodes.has(d.id)) ? 1 : 0.15);
+
+    svg.selectAll<Element, D3Link>('.link-line')
+      .attr('stroke',         d => (!dim || litLinks.has(d.id)) ? '#555' : DIM_EDGE_COLOR)
+      .attr('stroke-opacity', d => (!dim || litLinks.has(d.id)) ? 0.7   : 0.06);
   }, []);
 
+  // ── Main effect ─────────────────────────────────────────────────────────────
   useEffect(() => {
-    if (!containerRef.current || !graph) return;
+    const svgEl = svgRef.current;
+    if (!svgEl || !nodes.length) return;
 
-    // 1. FA2 initial layout
-    applyFA2(graph);
-    graph.updateEachNodeAttributes((_, attrs: any) => ({
-      ...attrs,
-      color: baseFill(attrs),
-      borderColor: baseBorder(attrs),
-    }));
-    graph.updateEachEdgeAttributes((_, attrs) => ({ ...attrs, color: '#333333' }));
+    // Clone so D3 can write x/y/vx/vy onto the objects
+    const simNodes: D3Node[] = nodes.map(n => ({ ...n }));
+    const simLinks: D3Link[] = links.map(l => ({ ...l }));
+    nodesRef.current = simNodes;
+    linksRef.current = simLinks;
 
-    // 2. Sigma — border node program: fill=tier color, border=role color
-    const NodeBorderProgram = createNodeBorderProgram({
-      borders: [
-        { size: { value: 0.15 }, color: { attribute: 'borderColor' } },
-        { size: { fill: true },  color: { attribute: 'color' } },
-      ],
+    const width  = svgEl.clientWidth  || 900;
+    const height = svgEl.clientHeight || 650;
+    const cx = width / 2, cy = height / 2;
+
+    // ── SVG scaffold ──────────────────────────────────────────────────────────
+    const svg = d3.select(svgEl);
+    svg.selectAll('*').remove();
+
+    // Arrow marker
+    svg.append('defs')
+      .append('marker')
+      .attr('id', 'arrow')
+      .attr('viewBox', '0 -3 6 6')
+      .attr('refX', 6).attr('refY', 0)
+      .attr('markerWidth', 5).attr('markerHeight', 5)
+      .attr('orient', 'auto')
+      .append('path')
+      .attr('d', 'M0,-3L6,0L0,3')
+      .attr('fill', '#3a3a3a');
+
+    const g = svg.append('g').attr('class', 'zoom-group');
+
+    // ── Zoom ─────────────────────────────────────────────────────────────────
+    const zoom = d3.zoom<SVGSVGElement, unknown>()
+      .scaleExtent([0.05, 10])
+      .on('zoom', ev => g.attr('transform', ev.transform.toString()));
+    zoomRef.current = zoom;
+    svg.call(zoom);
+
+    // ── Links ─────────────────────────────────────────────────────────────────
+    const linkSel = g.append('g').attr('class', 'links')
+      .selectAll<SVGLineElement, D3Link>('line')
+      .data(simLinks, d => d.id)
+      .join('line')
+      .attr('class', 'link-line')
+      .attr('stroke', '#444')
+      .attr('stroke-width', d => d.strokeWidth)
+      .attr('stroke-opacity', 0.7)
+      .attr('marker-end', 'url(#arrow)');
+
+    // ── Node groups ───────────────────────────────────────────────────────────
+    const nodeGroups = g.append('g').attr('class', 'nodes')
+      .selectAll<SVGGElement, D3Node>('g')
+      .data(simNodes, d => d.id)
+      .join('g')
+      .attr('class', 'node-group')
+      .style('cursor', 'grab');
+
+    // Shapes
+    nodeGroups.each(function(d) {
+      const el = d3.select(this);
+      if (d.nodeType === 'company') {
+        const r = d.size;
+        el.append('polygon')
+          .attr('class', 'node-shape')
+          .attr('points', `0,${-r} ${r},0 0,${r} ${-r},0`)
+          .attr('fill', d.fill)
+          .attr('stroke', d.stroke)
+          .attr('stroke-width', 2);
+      } else {
+        el.append('circle')
+          .attr('class', 'node-shape')
+          .attr('r', d.size)
+          .attr('fill', d.fill)
+          .attr('stroke', d.stroke)
+          .attr('stroke-width', 2);
+      }
     });
 
-    const renderer = new Sigma(graph, containerRef.current, {
-      renderEdgeLabels: false,
-      defaultEdgeType: 'arrow',
-      defaultNodeType: 'bordered',
-      nodeProgramClasses: { bordered: NodeBorderProgram },
-      labelFont: 'JetBrains Mono, monospace',
-      labelSize: 10,
-      labelWeight: '500',
-      labelColor: { color: '#AAAAAA' },
-      stagePadding: 40,
-      zoomToSizeRatioFunction: x => x,
-      itemSizesReference: 'positions',
-    });
+    // Labels
+    const labelSel = g.append('g').attr('class', 'labels')
+      .selectAll<SVGTextElement, D3Node>('text')
+      .data(simNodes, d => d.id)
+      .join('text')
+      .attr('class', 'node-label')
+      .text(d => d.label)
+      .attr('font-size', 11)
+      .attr('font-weight', '500')
+      .attr('font-family', 'JetBrains Mono, monospace')
+      .attr('fill', '#CCCCCC')
+      .attr('text-anchor', 'middle')
+      .attr('pointer-events', 'none')
+      .attr('dy', d => d.size + 13);
 
-    sigmaRef.current = renderer;
+    // ── Simulation ────────────────────────────────────────────────────────────
+    const sim = d3.forceSimulation<D3Node, D3Link>(simNodes)
+      .force('link', d3.forceLink<D3Node, D3Link>(simLinks)
+        .id(d => d.id)
+        .distance(45)
+        .strength(0.4))
+      .force('charge', d3.forceManyBody<D3Node>()
+        .strength(-500))
+      .force('center', d3.forceCenter(cx, cy).strength(0.06))
+      .force('x', d3.forceX(cx).strength(0.06))
+      .force('y', d3.forceY(cy).strength(0.06))
+      .force('collide', d3.forceCollide<D3Node>(d => d.size + 4)
+        .strength(0.9).iterations(2))
+      .velocityDecay(0.4)
+      .alphaDecay(0.0114)
+      .stop();
 
-    // Lock normalization domain after initial layout so nodes can move freely
-    // without warping the viewport↔graph coordinate mapping.
-    renderer.refresh();
-    const initBBox = renderer.getBBox();
-    const padX = Math.max(50, (initBBox.x[1] - initBBox.x[0]) * 0.6);
-    const padY = Math.max(50, (initBBox.y[1] - initBBox.y[0]) * 0.6);
-    renderer.setCustomBBox({
-      x: [initBBox.x[0] - padX, initBBox.x[1] + padX],
-      y: [initBBox.y[0] - padY, initBBox.y[1] + padY],
-    });
+    // Pre-run to establish sphere layout before first paint
+    for (let i = 0; i < 200; i++) sim.tick();
 
-    // 3. Spring sim — onTick writes positions back to graph and refreshes Sigma
-    const sim = new SpringSim(() => {
-      const s = simRef.current;
-      const r = sigmaRef.current;
-      if (!s || !r) return;
-      // Write sim positions directly to graph node attributes
-      s.nodes.forEach((n, key) => {
-        graph.setNodeAttribute(key, 'x', n.x);
-        graph.setNodeAttribute(key, 'y', n.y);
+    // Apply initial zoom fit immediately (no animation — nodes are already placed)
+    {
+      const xs = simNodes.map(n => n.x!).filter(isFinite);
+      const ys = simNodes.map(n => n.y!).filter(isFinite);
+      if (xs.length) {
+        const pad  = 60;
+        const minX = Math.min(...xs) - pad, maxX = Math.max(...xs) + pad;
+        const minY = Math.min(...ys) - pad, maxY = Math.max(...ys) + pad;
+        const scale = Math.min(width / (maxX - minX), height / (maxY - minY), 1.5);
+        const tx = width  / 2 - scale * (minX + maxX) / 2;
+        const ty = height / 2 - scale * (minY + maxY) / 2;
+        svg.call(zoom.transform, d3.zoomIdentity.translate(tx, ty).scale(scale));
+      }
+    }
+
+    // Restart at reduced alpha for gentle final settling
+    sim
+      .alpha(0.3)
+      .restart()
+      .on('tick', () => {
+        linkSel
+          .attr('x1', d => (d.source as D3Node).x!)
+          .attr('y1', d => (d.source as D3Node).y!)
+          .attr('x2', d => {
+            const s = d.source as D3Node, t = d.target as D3Node;
+            const dx = t.x! - s.x!, dy = t.y! - s.y!;
+            const len = Math.sqrt(dx * dx + dy * dy) || 1;
+            const off = (t.nodeType === 'company' ? t.size : t.size) + 7;
+            return t.x! - (dx / len) * off;
+          })
+          .attr('y2', d => {
+            const s = d.source as D3Node, t = d.target as D3Node;
+            const dx = t.x! - s.x!, dy = t.y! - s.y!;
+            const len = Math.sqrt(dx * dx + dy * dy) || 1;
+            const off = (t.nodeType === 'company' ? t.size : t.size) + 7;
+            return t.y! - (dy / len) * off;
+          });
+
+        nodeGroups.attr('transform', d => `translate(${d.x ?? cx},${d.y ?? cy})`);
+        labelSel.attr('transform',   d => `translate(${d.x ?? cx},${d.y ?? cy})`);
       });
-      r.refresh();
-    });
-    sim.load(graph);
+
     simRef.current = sim;
 
-    // Gentle initial settle from FA2 positions
-    sim.reheat(0.25);
-
-    const captor = renderer.getMouseCaptor();
-
-    // ── Drag ──────────────────────────────────────────────────────────────
-    renderer.on('downNode', ({ node }) => {
-      isDragging.current  = true;
-      dragDidMove.current = false;
-      draggedNode.current = node;
-      lastDragPos.current  = null;
-      dragVelocity.current = { vx: 0, vy: 0 };
-
-      const attrs = graph.getNodeAttributes(node) as any;
-      origSize.current = attrs.size ?? 4;
-
-      // Pin at current sim position
-      const sn = sim.nodes.get(node)!;
-      sim.pin(node, sn.x, sn.y);
-      sim.reheat(0.7);
-
-      graph.setNodeAttribute(node, 'size',        origSize.current * 1.5);
-      graph.setNodeAttribute(node, 'color',       brightFill(attrs));
-      graph.setNodeAttribute(node, 'borderColor', brightBorder(attrs));
-      graph.setNodeAttribute(node, 'zIndex',      100);
-
-      onTooltip(null, { x: 0, y: 0 });
-      setCursor('grabbing');
-    });
-
-    captor.on('mousemovebody', (coords: MouseCoords) => {
-      if (!isDragging.current || !draggedNode.current) return;
-
-      // Convert viewport → graph coordinates
-      const pos = renderer.viewportToGraph({ x: coords.x, y: coords.y });
-
-      // Track velocity: delta between this frame and the last
-      if (lastDragPos.current) {
-        const dvx = pos.x - lastDragPos.current.x;
-        const dvy = pos.y - lastDragPos.current.y;
-        dragVelocity.current = { vx: dvx, vy: dvy };
-        if (Math.hypot(dvx, dvy) > 0.1) dragDidMove.current = true;
-      }
-      lastDragPos.current = { x: pos.x, y: pos.y };
-
-      // Directly write dragged node position so it tracks cursor with zero sim lag
-      graph.setNodeAttribute(draggedNode.current, 'x', pos.x);
-      graph.setNodeAttribute(draggedNode.current, 'y', pos.y);
-
-      // Update sim pinned position — onTick handles connected-node rendering
-      sim.move(draggedNode.current, pos.x, pos.y);
-      // Keep sim hot for the entire drag so connected nodes keep springing
-      sim.reheat(0.4);
-
-      // Prevent Sigma from also panning the camera in response to this move
-      coords.preventSigmaDefault();
-      (coords.original as MouseEvent).preventDefault?.();
-      (coords.original as MouseEvent).stopPropagation?.();
-    });
-
-    const endDrag = () => {
-      if (!isDragging.current || !draggedNode.current) return;
-      const node = draggedNode.current;
-
-      // Apply throw velocity so the node coasts after release
-      const sn = sim.nodes.get(node);
-      if (sn) {
-        const THROW_SCALE = 8.0; // tune for iciness
-        sn.vx = dragVelocity.current.vx * THROW_SCALE;
-        sn.vy = dragVelocity.current.vy * THROW_SCALE;
-      }
-      lastDragPos.current  = null;
-      dragVelocity.current = { vx: 0, vy: 0 };
-
-      sim.unpin(node);
-      const speed = Math.hypot(sn?.vx ?? 0, sn?.vy ?? 0);
-      sim.reheat(Math.max(0.3, Math.min(0.8, speed * 0.1)));
-
-      graph.setNodeAttribute(node, 'size',   origSize.current);
-      graph.setNodeAttribute(node, 'zIndex', 1);
-
-      isDragging.current  = false;
-      draggedNode.current = null;
-
-      setCursor(hoveredNode.current ? 'grab' : 'default');
-      updateColors(renderer, hoveredNode.current, searchQuery);
-    };
-
-    captor.on('mouseup',    endDrag);
-    captor.on('mouseleave', endDrag);
-
-    // ── Hover ─────────────────────────────────────────────────────────────
-    renderer.on('enterNode', ({ node, event }) => {
-      if (isDragging.current) return;
-      hoveredNode.current = node;
-      updateColors(renderer, node, searchQuery);
-      setCursor('grab');
-
-      const attrs = graph.getNodeAttributes(node) as any;
-      const tip: TooltipData = attrs.nodeType === 'insider'
-        ? { type: 'insider', attrs: attrs as InsiderNodeAttributes }
-        : { type: 'company', attrs: attrs as CompanyNodeAttributes };
-
-      onTooltip(tip, {
-        x: 'clientX' in event.original ? (event.original as MouseEvent).clientX : 0,
-        y: 'clientY' in event.original ? (event.original as MouseEvent).clientY : 0,
+    // ── Drag ─────────────────────────────────────────────────────────────────
+    const drag = d3.drag<SVGGElement, D3Node>()
+      .on('start', (ev, d) => {
+        if (!ev.active) sim.alphaTarget(0.05).restart();
+        d.fx = d.x; d.fy = d.y;
+        onTooltipRef.current(null, { x: 0, y: 0 });
+      })
+      .on('drag', (ev, d) => {
+        d.fx = ev.x; d.fy = ev.y;
+      })
+      .on('end', (ev, d) => {
+        if (!ev.active) sim.alphaTarget(0);
+        d.fx = null; d.fy = null;
       });
-    });
 
-    renderer.on('leaveNode', () => {
-      if (isDragging.current) return;
-      hoveredNode.current = null;
-      updateColors(renderer, null, searchQuery);
-      setCursor('default');
-      onTooltip(null, { x: 0, y: 0 });
-    });
+    nodeGroups.call(drag as any);
 
-    renderer.on('enterEdge', ({ edge, event }) => {
-      if (isDragging.current) return;
-      const attrs = graph.getEdgeAttributes(edge) as EdgeAttributes;
-      onTooltip({ type: 'edge', attrs }, {
-        x: 'clientX' in event.original ? (event.original as MouseEvent).clientX : 0,
-        y: 'clientY' in event.original ? (event.original as MouseEvent).clientY : 0,
+    // ── Hover / click ─────────────────────────────────────────────────────────
+    nodeGroups
+      .on('mouseenter', (ev: MouseEvent, d: D3Node) => {
+        hoveredRef.current = d.id;
+        applyHighlight(svgEl, d.id, searchRef.current);
+        const tip: TooltipData =
+          d.nodeType === 'insider'
+            ? { type: 'insider', attrs: d as D3InsiderNode }
+            : { type: 'company', attrs: d as D3CompanyNode };
+        onTooltipRef.current(tip, { x: ev.clientX, y: ev.clientY });
+      })
+      .on('mouseleave', () => {
+        hoveredRef.current = null;
+        applyHighlight(svgEl, null, searchRef.current);
+        onTooltipRef.current(null, { x: 0, y: 0 });
+      })
+      .on('click', (ev: MouseEvent, d: D3Node) => {
+        if (ev.defaultPrevented) return; // suppressed by drag
+        const tip: TooltipData =
+          d.nodeType === 'insider'
+            ? { type: 'insider', attrs: d as D3InsiderNode }
+            : { type: 'company', attrs: d as D3CompanyNode };
+        onNodeClickRef.current?.(tip);
       });
-    });
 
-    renderer.on('leaveEdge', () => {
-      if (isDragging.current) return;
-      onTooltip(null, { x: 0, y: 0 });
-    });
-
-    // ── Click (open detail panel) ──────────────────────────────────────────
-    renderer.on('clickNode', ({ node }) => {
-      // Ignore clicks that were actually drag-releases
-      if (isDragging.current || dragDidMove.current) {
-        dragDidMove.current = false;
-        return;
-      }
-      const attrs = graph.getNodeAttributes(node) as any;
-      if (attrs.nodeType !== 'insider') return;
-      onNodeClick?.({ type: 'insider', attrs: attrs as InsiderNodeAttributes });
-    });
+    // Edge hover
+    linkSel
+      .on('mouseenter', (ev: MouseEvent, d: D3Link) => {
+        onTooltipRef.current({ type: 'edge', attrs: d }, { x: ev.clientX, y: ev.clientY });
+      })
+      .on('mouseleave', () => {
+        onTooltipRef.current(null, { x: 0, y: 0 });
+      });
 
     return () => {
       sim.stop();
-      renderer.kill();
-      sigmaRef.current = null;
-      simRef.current   = null;
+      svg.selectAll('*').remove();
+      simRef.current = null;
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [graph]);
+  }, [nodes, links, applyHighlight]);
 
+  // Search highlight without restarting sim
   useEffect(() => {
-    if (!sigmaRef.current) return;
-    updateColors(sigmaRef.current, hoveredNode.current, searchQuery);
-  }, [searchQuery, updateColors]);
+    applyHighlight(svgRef.current, hoveredRef.current, searchQuery);
+  }, [searchQuery, applyHighlight]);
 
-  return <div ref={containerRef} className="w-full h-full" style={{ cursor: 'default' }} />;
+  return (
+    <svg
+      ref={svgRef}
+      style={{ width: '100%', height: '100%', cursor: 'default' }}
+    />
+  );
 });

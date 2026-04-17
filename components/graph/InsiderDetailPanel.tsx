@@ -2,12 +2,12 @@
 
 import React, { memo } from 'react';
 import { X, TrendingUp, TrendingDown, Minus } from 'lucide-react';
-import { InsiderNodeAttributes } from '@/types/graph';
+import { InsiderAttrs } from '@/types/graph';
 import { getTierColor, getRoleColor } from '@/lib/graphColors';
 import { useInsiderMetrics } from '@/hooks/useInsiderMetrics';
 
 interface InsiderDetailPanelProps {
-  attrs: InsiderNodeAttributes | null;
+  attrs: InsiderAttrs | null;
   onClose: () => void;
 }
 

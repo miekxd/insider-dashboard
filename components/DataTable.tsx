@@ -106,14 +106,6 @@ const TableRow = memo(function TableRow({
       </td>
       <td className="py-3 px-4">
         <span
-          className="text-sm truncate block max-w-[200px]"
-          style={{ color: 'var(--text-secondary)' }}
-        >
-          {call.company_name || '—'}
-        </span>
-      </td>
-      <td className="py-3 px-4">
-        <span
           className="text-sm"
           style={{ color: 'var(--text-secondary)' }}
         >
@@ -121,7 +113,25 @@ const TableRow = memo(function TableRow({
         </span>
       </td>
       <td className="py-3 px-4">
-        <RecommendationBadge recommendation={call.recommendation} />
+        <span
+          className="text-sm truncate block"
+          style={{ color: 'var(--text-secondary)' }}
+        >
+          {call.company_name || '—'}
+        </span>
+      </td>
+      <td className="py-3 px-4">
+        <div className="flex items-center gap-1.5 flex-nowrap">
+          <RecommendationBadge recommendation={call.recommendation} />
+          {call.signal_strength !== null && (
+            <span
+              className="inline-flex items-center font-mono text-xs font-medium px-2 py-0.5 rounded tabular-nums"
+              style={{ backgroundColor: 'var(--bg-tertiary)', color: 'var(--text-secondary)' }}
+            >
+              {call.signal_strength}
+            </span>
+          )}
+        </div>
       </td>
       <td className="py-3 px-4 text-right">
         <div
@@ -210,18 +220,18 @@ export const DataTable = memo(function DataTable({
       }}
     >
       <div className="overflow-x-auto">
-        <table className="w-full">
+        <table className="w-full" style={{ tableLayout: 'fixed', minWidth: '860px' }}>
           <thead>
             <tr style={{ backgroundColor: 'var(--bg-secondary)' }}>
-              {showRank && <TableHeader className="w-12 text-center">#</TableHeader>}
-              <TableHeader className="min-w-[100px]">Ticker</TableHeader>
-              <TableHeader className="min-w-[180px]">Company</TableHeader>
-              <TableHeader className="min-w-[100px]">Sector</TableHeader>
-              <TableHeader className="min-w-[100px]">Signal</TableHeader>
-              <TableHeader className="text-right min-w-[100px]">Entry</TableHeader>
-              <TableHeader className="text-right min-w-[100px]">Current Price</TableHeader>
-              <TableHeader className="text-right min-w-[90px]">Return</TableHeader>
-              <TableHeader className="text-right min-w-[80px]">Days</TableHeader>
+              {showRank && <TableHeader className="w-10 text-center">#</TableHeader>}
+              <TableHeader className="w-[90px]">Ticker</TableHeader>
+              <TableHeader className="w-[110px]">Sector</TableHeader>
+              <TableHeader>Company</TableHeader>
+              <TableHeader className="w-[180px]">Signal</TableHeader>
+              <TableHeader className="text-right w-[110px]">Entry</TableHeader>
+              <TableHeader className="text-right w-[120px]">Current Price</TableHeader>
+              <TableHeader className="text-right w-[90px]">Return</TableHeader>
+              <TableHeader className="text-right w-[70px]">Days</TableHeader>
               <TableHeader className="w-10" />
             </tr>
           </thead>

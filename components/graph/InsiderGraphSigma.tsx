@@ -4,28 +4,19 @@ import React, { useEffect, useRef, useCallback, memo } from 'react';
 import Graph from 'graphology';
 import Sigma from 'sigma';
 import { MouseCoords } from 'sigma/types';
+import { createNodeBorderProgram } from '@sigma/node-border';
 import forceAtlas2 from 'graphology-layout-forceatlas2';
+import { NodeDiamondProgram } from '@/lib/nodeDiamondProgram';
 import { InsiderNodeAttributes, CompanyNodeAttributes, EdgeAttributes } from '@/types/graph';
 import {
-  COMPANY_COLOR, ENTITY_COLORS,
-  COMPANY_COLOR_BRIGHT, ENTITY_COLORS_BRIGHT,
-  DIM_COLOR, DIM_EDGE_COLOR,
+  COMPANY_COLOR, COMPANY_COLOR_BRIGHT,
+  getTierColor, getTierColorBright,
+  getRoleColorBright,
+  DIM_COLOR, DIM_EDGE_COLOR, DIM_BORDER_COLOR,
 } from '@/lib/graphColors';
 import { TooltipData } from './GraphTooltip';
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Spring physics simulation
-//
-// Each node has position + velocity. Every tick:
-//   - All node pairs repel (inverse-square charge force)
-//   - Connected nodes attract (Hooke spring along each edge)
-//   - Weak gravity toward origin prevents drift
-//   - Velocity decays by DAMPING factor
-//
-// Alpha = "heat". Decays each tick. Physics stops when cool.
-// Call reheat() to wake the sim back up (e.g. on drag start/end).
-// Pinned nodes are held at a fixed position — everything else springs around them.
-// ─────────────────────────────────────────────────────────────────────────────
+// ─── Spring physics ────────────────────────────────────────────────────────────
 
 interface SimNode {
   x: number; y: number;
@@ -111,7 +102,6 @@ class SpringSim {
     const entries = [...this.nodes.entries()];
     const N = entries.length;
 
-    // Repulsion — all pairs
     for (let i = 0; i < N; i++) {
       const [, a] = entries[i];
       for (let j = i + 1; j < N; j++) {
@@ -126,7 +116,6 @@ class SpringSim {
       }
     }
 
-    // Springs — along edges
     for (const [sk, tk] of this.edges) {
       const s = this.nodes.get(sk), t = this.nodes.get(tk);
       if (!s || !t) continue;
@@ -138,7 +127,6 @@ class SpringSim {
       if (!t.pinned) { t.vx -= fx; t.vy -= fy; }
     }
 
-    // Gravity toward origin
     for (const [, n] of entries) {
       if (!n.pinned) {
         n.vx -= n.x * this.GRAVITY * this.alpha;
@@ -146,7 +134,6 @@ class SpringSim {
       }
     }
 
-    // Integrate
     for (const [, n] of entries) {
       if (n.pinned) continue;
       n.vx *= this.DAMPING; n.vy *= this.DAMPING;
@@ -157,14 +144,19 @@ class SpringSim {
   }
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Helpers
-// ─────────────────────────────────────────────────────────────────────────────
+// ─── Helpers ──────────────────────────────────────────────────────────────────
 
 function applyFA2(graph: Graph) {
   const positions = forceAtlas2(graph, {
     iterations: 200,
-    settings: { adjustSizes: true, edgeWeightInfluence: 1, scalingRatio: 4, strongGravityMode: true, gravity: 0.5, barnesHutOptimize: true },
+    settings: {
+      adjustSizes: true,
+      edgeWeightInfluence: 1,
+      scalingRatio: 4,
+      strongGravityMode: true,
+      gravity: 0.5,
+      barnesHutOptimize: true,
+    },
   });
   graph.updateEachNodeAttributes((node, attrs) => ({
     ...attrs,
@@ -173,26 +165,38 @@ function applyFA2(graph: Graph) {
   }));
 }
 
-function brightColor(attrs: any): string {
+function brightFill(attrs: any): string {
   if (attrs.nodeType === 'company') return COMPANY_COLOR_BRIGHT;
-  return ENTITY_COLORS_BRIGHT[attrs.entity_type as keyof typeof ENTITY_COLORS_BRIGHT] ?? ENTITY_COLORS_BRIGHT.UNKNOWN;
+  return getTierColorBright(attrs.insider_tier);
 }
-function baseColor(attrs: any): string {
+function baseFill(attrs: any): string {
   if (attrs.nodeType === 'company') return COMPANY_COLOR;
-  return ENTITY_COLORS[attrs.entity_type as keyof typeof ENTITY_COLORS] ?? ENTITY_COLORS.UNKNOWN;
+  return getTierColor(attrs.insider_tier);
+}
+function brightBorder(attrs: any): string {
+  if (attrs.nodeType === 'company') return COMPANY_COLOR_BRIGHT;
+  return getRoleColorBright(attrs.entity_type);
+}
+function baseBorder(attrs: any): string {
+  if (attrs.nodeType === 'company') return COMPANY_COLOR;
+  return getRoleColorBright(attrs.entity_type);
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Component
-// ─────────────────────────────────────────────────────────────────────────────
+// ─── Component ────────────────────────────────────────────────────────────────
 
-interface InsiderGraphProps {
+interface InsiderGraphSigmaProps {
   graph: Graph;
   searchQuery: string;
   onTooltip: (data: TooltipData | null, position: { x: number; y: number }) => void;
+  onNodeClick?: (data: TooltipData) => void;
 }
 
-export const InsiderGraph = memo(function InsiderGraph({ graph, searchQuery, onTooltip }: InsiderGraphProps) {
+export const InsiderGraphSigma = memo(function InsiderGraphSigma({
+  graph,
+  searchQuery,
+  onTooltip,
+  onNodeClick,
+}: InsiderGraphSigmaProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const sigmaRef     = useRef<Sigma | null>(null);
   const simRef       = useRef<SpringSim | null>(null);
@@ -200,6 +204,7 @@ export const InsiderGraph = memo(function InsiderGraph({ graph, searchQuery, onT
   const hoveredNode  = useRef<string | null>(null);
   const draggedNode  = useRef<string | null>(null);
   const isDragging   = useRef(false);
+  const dragDidMove  = useRef(false);
   const origSize     = useRef(4);
   const lastDragPos  = useRef<{ x: number; y: number } | null>(null);
   const dragVelocity = useRef<{ vx: number; vy: number }>({ vx: 0, vy: 0 });
@@ -221,7 +226,10 @@ export const InsiderGraph = memo(function InsiderGraph({ graph, searchQuery, onT
     }
     if (q) {
       g.forEachNode((key, attrs: any) => {
-        if ((attrs.label ?? '').toLowerCase().includes(q) || (attrs.ticker ?? '').toLowerCase().includes(q)) {
+        if (
+          (attrs.label ?? '').toLowerCase().includes(q) ||
+          (attrs.ticker ?? '').toLowerCase().includes(q)
+        ) {
           litNodes.add(key);
           g.forEachNeighbor(key, n => litNodes.add(n));
           g.forEachEdge(key, e => litEdges.add(e));
@@ -232,7 +240,12 @@ export const InsiderGraph = memo(function InsiderGraph({ graph, searchQuery, onT
     const dim = hovered !== null || q !== '';
     g.updateEachNodeAttributes((key, attrs: any) => {
       const lit = !dim || litNodes.has(key);
-      return { ...attrs, color: lit ? brightColor(attrs) : DIM_COLOR, zIndex: lit ? (key === hovered ? 10 : 1) : 0 };
+      return {
+        ...attrs,
+        color:       lit ? brightFill(attrs)   : DIM_COLOR,
+        borderColor: lit ? brightBorder(attrs) : DIM_BORDER_COLOR,
+        zIndex: lit ? (key === hovered ? 10 : 1) : 0,
+      };
     });
     g.updateEachEdgeAttributes((key, attrs) => {
       const lit = !dim || litEdges.has(key);
@@ -244,15 +257,30 @@ export const InsiderGraph = memo(function InsiderGraph({ graph, searchQuery, onT
   useEffect(() => {
     if (!containerRef.current || !graph) return;
 
-    // 1. FA2 initial layout
     applyFA2(graph);
-    graph.updateEachNodeAttributes((_, attrs: any) => ({ ...attrs, color: baseColor(attrs) }));
+    graph.updateEachNodeAttributes((_, attrs: any) => ({
+      ...attrs,
+      color: baseFill(attrs),
+      borderColor: baseBorder(attrs),
+    }));
     graph.updateEachEdgeAttributes((_, attrs) => ({ ...attrs, color: '#333333' }));
 
-    // 2. Sigma — no nodeReducer; sim writes positions directly to graph attributes
+    // Bordered circles for insiders, diamond for companies
+    const NodeBorderProgram = createNodeBorderProgram({
+      borders: [
+        { size: { value: 0.15 }, color: { attribute: 'borderColor' } },
+        { size: { fill: true },  color: { attribute: 'color' } },
+      ],
+    });
+
     const renderer = new Sigma(graph, containerRef.current, {
       renderEdgeLabels: false,
       defaultEdgeType: 'arrow',
+      defaultNodeType: 'bordered',
+      nodeProgramClasses: {
+        bordered: NodeBorderProgram,
+        diamond: NodeDiamondProgram,
+      },
       labelFont: 'JetBrains Mono, monospace',
       labelSize: 10,
       labelWeight: '500',
@@ -264,8 +292,6 @@ export const InsiderGraph = memo(function InsiderGraph({ graph, searchQuery, onT
 
     sigmaRef.current = renderer;
 
-    // Lock normalization domain after initial layout so nodes can move freely
-    // without warping the viewport↔graph coordinate mapping.
     renderer.refresh();
     const initBBox = renderer.getBBox();
     const padX = Math.max(50, (initBBox.x[1] - initBBox.x[0]) * 0.6);
@@ -275,12 +301,10 @@ export const InsiderGraph = memo(function InsiderGraph({ graph, searchQuery, onT
       y: [initBBox.y[0] - padY, initBBox.y[1] + padY],
     });
 
-    // 3. Spring sim — onTick writes positions back to graph and refreshes Sigma
     const sim = new SpringSim(() => {
       const s = simRef.current;
       const r = sigmaRef.current;
       if (!s || !r) return;
-      // Write sim positions directly to graph node attributes
       s.nodes.forEach((n, key) => {
         graph.setNodeAttribute(key, 'x', n.x);
         graph.setNodeAttribute(key, 'y', n.y);
@@ -289,15 +313,14 @@ export const InsiderGraph = memo(function InsiderGraph({ graph, searchQuery, onT
     });
     sim.load(graph);
     simRef.current = sim;
-
-    // Gentle initial settle from FA2 positions
     sim.reheat(0.25);
 
     const captor = renderer.getMouseCaptor();
 
-    // ── Drag ──────────────────────────────────────────────────────────────
+    // ── Drag ────────────────────────────────────────────────────────────────
     renderer.on('downNode', ({ node }) => {
       isDragging.current  = true;
+      dragDidMove.current = false;
       draggedNode.current = node;
       lastDragPos.current  = null;
       dragVelocity.current = { vx: 0, vy: 0 };
@@ -305,14 +328,14 @@ export const InsiderGraph = memo(function InsiderGraph({ graph, searchQuery, onT
       const attrs = graph.getNodeAttributes(node) as any;
       origSize.current = attrs.size ?? 4;
 
-      // Pin at current sim position
       const sn = sim.nodes.get(node)!;
       sim.pin(node, sn.x, sn.y);
       sim.reheat(0.7);
 
-      graph.setNodeAttribute(node, 'size',   origSize.current * 1.5);
-      graph.setNodeAttribute(node, 'color',  brightColor(attrs));
-      graph.setNodeAttribute(node, 'zIndex', 100);
+      graph.setNodeAttribute(node, 'size',        origSize.current * 1.5);
+      graph.setNodeAttribute(node, 'color',       brightFill(attrs));
+      graph.setNodeAttribute(node, 'borderColor', brightBorder(attrs));
+      graph.setNodeAttribute(node, 'zIndex',      100);
 
       onTooltip(null, { x: 0, y: 0 });
       setCursor('grabbing');
@@ -320,25 +343,21 @@ export const InsiderGraph = memo(function InsiderGraph({ graph, searchQuery, onT
 
     captor.on('mousemovebody', (coords: MouseCoords) => {
       if (!isDragging.current || !draggedNode.current) return;
-
-      // Convert viewport → graph coordinates
       const pos = renderer.viewportToGraph({ x: coords.x, y: coords.y });
 
-      // Track velocity: delta between this frame and the last
       if (lastDragPos.current) {
-        dragVelocity.current = {
-          vx: pos.x - lastDragPos.current.x,
-          vy: pos.y - lastDragPos.current.y,
-        };
+        const dvx = pos.x - lastDragPos.current.x;
+        const dvy = pos.y - lastDragPos.current.y;
+        dragVelocity.current = { vx: dvx, vy: dvy };
+        if (Math.hypot(dvx, dvy) > 0.1) dragDidMove.current = true;
       }
       lastDragPos.current = { x: pos.x, y: pos.y };
 
-      // Update sim pinned position — onTick handles all rendering uniformly
+      graph.setNodeAttribute(draggedNode.current, 'x', pos.x);
+      graph.setNodeAttribute(draggedNode.current, 'y', pos.y);
       sim.move(draggedNode.current, pos.x, pos.y);
-      // Keep sim hot for the entire drag so connected nodes keep springing
       sim.reheat(0.4);
 
-      // Prevent Sigma from also panning the camera in response to this move
       coords.preventSigmaDefault();
       (coords.original as MouseEvent).preventDefault?.();
       (coords.original as MouseEvent).stopPropagation?.();
@@ -348,10 +367,9 @@ export const InsiderGraph = memo(function InsiderGraph({ graph, searchQuery, onT
       if (!isDragging.current || !draggedNode.current) return;
       const node = draggedNode.current;
 
-      // Apply throw velocity so the node coasts after release
       const sn = sim.nodes.get(node);
       if (sn) {
-        const THROW_SCALE = 8.0; // tune for iciness
+        const THROW_SCALE = 8.0;
         sn.vx = dragVelocity.current.vx * THROW_SCALE;
         sn.vy = dragVelocity.current.vy * THROW_SCALE;
       }
@@ -375,7 +393,7 @@ export const InsiderGraph = memo(function InsiderGraph({ graph, searchQuery, onT
     captor.on('mouseup',    endDrag);
     captor.on('mouseleave', endDrag);
 
-    // ── Hover ─────────────────────────────────────────────────────────────
+    // ── Hover ────────────────────────────────────────────────────────────────
     renderer.on('enterNode', ({ node, event }) => {
       if (isDragging.current) return;
       hoveredNode.current = node;
@@ -413,6 +431,17 @@ export const InsiderGraph = memo(function InsiderGraph({ graph, searchQuery, onT
     renderer.on('leaveEdge', () => {
       if (isDragging.current) return;
       onTooltip(null, { x: 0, y: 0 });
+    });
+
+    // ── Click ────────────────────────────────────────────────────────────────
+    renderer.on('clickNode', ({ node }) => {
+      if (isDragging.current || dragDidMove.current) {
+        dragDidMove.current = false;
+        return;
+      }
+      const attrs = graph.getNodeAttributes(node) as any;
+      if (attrs.nodeType !== 'insider') return;
+      onNodeClick?.({ type: 'insider', attrs: attrs as InsiderNodeAttributes });
     });
 
     return () => {

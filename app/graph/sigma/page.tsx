@@ -5,18 +5,16 @@ import dynamic from 'next/dynamic';
 import Link from 'next/link';
 import { ArrowLeft, Sun, Moon, Network } from 'lucide-react';
 import { useTheme } from '@/contexts/ThemeContext';
-import { useGraphData } from '@/hooks/useGraphData';
-import { GraphFilters, InsiderAttrs, CompanyAttrs } from '@/types/graph';
+import { useGraphDataSigma } from '@/hooks/useGraphDataSigma';
+import { GraphFilters, InsiderAttrs } from '@/types/graph';
 import { GraphControls } from '@/components/graph/GraphControls';
-import { ClusterPanel } from '@/components/graph/ClusterPanel';
 import { GraphLegend } from '@/components/graph/GraphLegend';
 import { GraphTooltip, TooltipData } from '@/components/graph/GraphTooltip';
 import { InsiderDetailPanel } from '@/components/graph/InsiderDetailPanel';
-import { CompanyDetailPanel } from '@/components/graph/CompanyDetailPanel';
+import { ClusterPanelSigma } from '@/components/graph/ClusterPanelSigma';
 
-// Dynamically import D3-backed component (no SSR — DOM APIs require browser)
-const InsiderGraph = dynamic(
-  () => import('@/components/graph/InsiderGraph').then((m) => m.InsiderGraph),
+const InsiderGraphSigma = dynamic(
+  () => import('@/components/graph/InsiderGraphSigma').then((m) => m.InsiderGraphSigma),
   { ssr: false }
 );
 
@@ -27,21 +25,19 @@ const DEFAULT_FILTERS: GraphFilters = {
   search: '',
 };
 
-export default function GraphPage() {
+export default function GraphSigmaPage() {
   const { theme, toggleTheme } = useTheme();
   const [filters, setFilters] = useState<GraphFilters>(DEFAULT_FILTERS);
   const [tooltipData, setTooltipData] = useState<TooltipData | null>(null);
   const [tooltipPos, setTooltipPos] = useState({ x: 0, y: 0 });
   const [selectedInsider, setSelectedInsider] = useState<InsiderAttrs | null>(null);
-  const [selectedCompany, setSelectedCompany] = useState<CompanyAttrs | null>(null);
 
-  // Filters that actually trigger refetch (search is client-side highlight only)
   const fetchFilters = useMemo(() => ({
     ...filters,
     search: '',
   }), [filters.minValue, filters.role, filters.time]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const { nodes, links, loading, error, nodeCount, edgeCount } = useGraphData(fetchFilters);
+  const { graph, loading, error, nodeCount, edgeCount } = useGraphDataSigma(fetchFilters);
 
   const handleTooltip = useCallback((data: TooltipData | null, position: { x: number; y: number }) => {
     setTooltipData(data);
@@ -53,13 +49,7 @@ export default function GraphPage() {
   }, []);
 
   const handleNodeClick = useCallback((data: TooltipData) => {
-    if (data.type === 'insider') {
-      setSelectedCompany(null);
-      setSelectedInsider(data.attrs);
-    } else if (data.type === 'company') {
-      setSelectedInsider(null);
-      setSelectedCompany(data.attrs);
-    }
+    if (data.type === 'insider') setSelectedInsider(data.attrs);
   }, []);
 
   const handleMouseMove = useCallback((e: React.MouseEvent) => {
@@ -72,13 +62,9 @@ export default function GraphPage() {
       style={{ backgroundColor: 'var(--bg-primary)' }}
       onMouseMove={handleMouseMove}
     >
-      {/* Header */}
       <header
         className="shrink-0 flex items-center justify-between h-14 px-6 border-b z-20"
-        style={{
-          backgroundColor: 'var(--bg-primary)',
-          borderColor: 'var(--border-primary)',
-        }}
+        style={{ backgroundColor: 'var(--bg-primary)', borderColor: 'var(--border-primary)' }}
       >
         <div className="flex items-center gap-3">
           <Link
@@ -96,18 +82,32 @@ export default function GraphPage() {
               Insider Network
             </h1>
           </div>
+          {/* Version switcher */}
+          <div className="flex items-center gap-1 ml-2 rounded-md overflow-hidden border" style={{ borderColor: 'var(--border-primary)' }}>
+            <span
+              className="px-2.5 py-1 text-xs font-mono font-semibold"
+              style={{ backgroundColor: 'var(--accent-primary)', color: '#fff' }}
+            >
+              Sigma
+            </span>
+            <Link
+              href="/graph"
+              className="px-2.5 py-1 text-xs font-mono transition-colors"
+              style={{ color: 'var(--text-secondary)' }}
+            >
+              D3
+            </Link>
+          </div>
         </div>
         <button
           onClick={toggleTheme}
           className="p-2 rounded transition-colors"
           style={{ backgroundColor: 'var(--bg-tertiary)', color: 'var(--text-secondary)' }}
-          aria-label={`Switch to ${theme === 'light' ? 'dark' : 'light'} mode`}
         >
           {theme === 'light' ? <Moon className="w-4 h-4" /> : <Sun className="w-4 h-4" />}
         </button>
       </header>
 
-      {/* Controls bar */}
       <GraphControls
         filters={filters}
         onChange={setFilters}
@@ -116,35 +116,25 @@ export default function GraphPage() {
         loading={loading}
       />
 
-      {/* Body: sidebar + canvas */}
       <div className="flex flex-1 overflow-hidden">
-        {/* Left sidebar: cluster panel */}
         <aside
           className="hidden md:flex flex-col w-52 shrink-0 border-r overflow-y-auto"
-          style={{
-            borderColor: 'var(--border-primary)',
-            backgroundColor: 'var(--bg-secondary)',
-          }}
+          style={{ borderColor: 'var(--border-primary)', backgroundColor: 'var(--bg-secondary)' }}
         >
-          <ClusterPanel
-            nodes={nodes}
+          <ClusterPanelSigma
+            graph={graph}
             onHighlight={handleClusterHighlight}
             highlighted={filters.search}
           />
         </aside>
 
-        {/* Canvas area */}
         <div className="relative flex-1 overflow-hidden">
           {loading && (
             <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 z-10"
               style={{ backgroundColor: 'var(--bg-primary)' }}>
-              <div
-                className="w-8 h-8 rounded-full border-2 border-t-transparent animate-spin"
-                style={{ borderColor: 'var(--accent-primary)', borderTopColor: 'transparent' }}
-              />
-              <span className="text-sm" style={{ color: 'var(--text-tertiary)' }}>
-                Building graph…
-              </span>
+              <div className="w-8 h-8 rounded-full border-2 border-t-transparent animate-spin"
+                style={{ borderColor: 'var(--accent-primary)', borderTopColor: 'transparent' }} />
+              <span className="text-sm" style={{ color: 'var(--text-tertiary)' }}>Building graph…</span>
             </div>
           )}
 
@@ -154,19 +144,16 @@ export default function GraphPage() {
             </div>
           )}
 
-          {!loading && !error && nodeCount === 0 && (
+          {!loading && !error && graph && graph.order === 0 && (
             <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 z-10">
               <Network className="w-10 h-10" style={{ color: 'var(--text-tertiary)' }} />
-              <span className="text-sm" style={{ color: 'var(--text-tertiary)' }}>
-                No nodes match current filters
-              </span>
+              <span className="text-sm" style={{ color: 'var(--text-tertiary)' }}>No nodes match current filters</span>
             </div>
           )}
 
-          {!loading && !error && nodeCount > 0 && (
-            <InsiderGraph
-              nodes={nodes}
-              links={links}
+          {!loading && !error && graph && graph.order > 0 && (
+            <InsiderGraphSigma
+              graph={graph}
               searchQuery={filters.search}
               onTooltip={handleTooltip}
               onNodeClick={handleNodeClick}
@@ -179,14 +166,9 @@ export default function GraphPage() {
             attrs={selectedInsider}
             onClose={() => setSelectedInsider(null)}
           />
-          <CompanyDetailPanel
-            attrs={selectedCompany}
-            onClose={() => setSelectedCompany(null)}
-          />
         </div>
       </div>
 
-      {/* Floating tooltip */}
       <GraphTooltip data={tooltipData} position={tooltipPos} />
     </div>
   );

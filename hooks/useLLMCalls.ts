@@ -32,6 +32,12 @@ interface UseLLMCallsReturn {
   setFilter: (filter: FilterType) => void;
   /** Computed statistics */
   stats: ReturnType<typeof calculateStats>;
+  /** Minimum signal score filter (0 = no filter) */
+  minSignal: number;
+  /** Set minimum signal score filter */
+  setMinSignal: (v: number) => void;
+  /** Maximum signal score in the loaded data (10 or 100) */
+  maxSignal: number;
 }
 
 /**
@@ -56,6 +62,7 @@ export function useLLMCalls(): UseLLMCallsReturn {
   const [error, setError] = useState('');
   const [filter, setFilter] = useState<FilterType>(FILTER_TYPES.ALL);
   const [isRefreshDisabled, setIsRefreshDisabled] = useState(false);
+  const [minSignal, setMinSignal] = useState<number>(0);
 
   // Ref to track if component is mounted
   const isMountedRef = useRef(true);
@@ -150,19 +157,32 @@ export function useLLMCalls(): UseLLMCallsReturn {
     fetchCalls();
   }, [fetchCalls]);
 
+  /** Maximum signal score detected in the data (10 for v1, 100 for v1.5) */
+  const maxSignal = useMemo(() => {
+    const top = Math.max(...allCalls.map((c) => c.signal_strength ?? 0), 0);
+    return top > 10 ? 100 : 10;
+  }, [allCalls]);
+
+  /** Calls after applying the signal score filter — base for both stats and table */
+  const signalFilteredCalls = useMemo((): ParsedLLMCall[] =>
+    minSignal > 0
+      ? allCalls.filter((c) => (c.signal_strength ?? 0) >= minSignal)
+      : allCalls,
+  [allCalls, minSignal]);
+
   /**
-   * Filter calls based on current filter
+   * Filter calls based on current filter and signal score
    *
    * Memoized to prevent unnecessary recalculations
-   * Only recomputes when allCalls or filter changes
+   * Only recomputes when allCalls, filter, or minSignal changes
    */
   const calls = useMemo((): ParsedLLMCall[] => {
     if (filter === FILTER_TYPES.ALL) {
-      return allCalls;
+      return signalFilteredCalls;
     }
 
     // Create array with pre-computed PnL values (single pass)
-    const callsWithPnL = allCalls
+    const callsWithPnL = signalFilteredCalls
       .map((call) => ({
         call,
         pnl: calculatePnL(call),
@@ -178,14 +198,13 @@ export function useLLMCalls(): UseLLMCallsReturn {
 
     // Return top N results
     return sorted.slice(0, TOP_LIST_LIMIT).map((item) => item.call);
-  }, [allCalls, filter]);
+  }, [signalFilteredCalls, filter]);
 
   /**
-   * Compute statistics from all calls
-   *
-   * Memoized to prevent unnecessary recalculations
+   * Compute statistics from signal-filtered calls so the stats row
+   * updates in sync with the slider.
    */
-  const stats = useMemo(() => calculateStats(allCalls), [allCalls]);
+  const stats = useMemo(() => calculateStats(signalFilteredCalls), [signalFilteredCalls]);
 
   return {
     calls,
@@ -198,6 +217,9 @@ export function useLLMCalls(): UseLLMCallsReturn {
     filter,
     setFilter,
     stats,
+    minSignal,
+    setMinSignal,
+    maxSignal,
   };
 }
 

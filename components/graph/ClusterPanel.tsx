@@ -1,12 +1,11 @@
 'use client';
 
 import React, { memo, useMemo } from 'react';
-import Graph from 'graphology';
-import { CompanyNodeAttributes } from '@/types/graph';
+import { D3Node } from '@/types/graph';
 import { AlertTriangle } from 'lucide-react';
 
 interface ClusterPanelProps {
-  graph: Graph | null;
+  nodes: D3Node[];
   onHighlight: (ticker: string) => void;
   highlighted: string;
 }
@@ -19,28 +18,24 @@ interface ClusterEntry {
 }
 
 export const ClusterPanel = memo(function ClusterPanel({
-  graph,
+  nodes,
   onHighlight,
   highlighted,
 }: ClusterPanelProps) {
   const clusters = useMemo<ClusterEntry[]>(() => {
-    if (!graph) return [];
     const entries: ClusterEntry[] = [];
-    graph.forEachNode((key, attrs: any) => {
-      if (attrs.nodeType === 'company') {
-        const compAttrs = attrs as CompanyNodeAttributes;
-        if (compAttrs.unique_insiders_bought >= 2) {
-          entries.push({
-            ticker: compAttrs.ticker,
-            companyName: compAttrs.company_name,
-            insiderCount: compAttrs.unique_insiders_bought,
-            nodeKey: key,
-          });
-        }
+    nodes.forEach(n => {
+      if (n.nodeType === 'company' && n.unique_insiders_bought >= 2) {
+        entries.push({
+          ticker: n.ticker,
+          companyName: n.company_name,
+          insiderCount: n.unique_insiders_bought,
+          nodeKey: n.id,
+        });
       }
     });
     return entries.sort((a, b) => b.insiderCount - a.insiderCount).slice(0, 12);
-  }, [graph]);
+  }, [nodes]);
 
   if (clusters.length === 0) return null;
 

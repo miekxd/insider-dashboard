@@ -1,9 +1,13 @@
 'use client';
 
 import { useState, useEffect, useCallback, useRef } from 'react';
+import Graph from 'graphology';
 import { createClient } from '@/lib/supabase/client';
-import { GraphRow, GraphFilters, D3Node, D3InsiderNode, D3CompanyNode, D3Link } from '@/types/graph';
-import { getTierColor, getRoleColor, getTierColorBright, getRoleColorBright, COMPANY_COLOR, COMPANY_COLOR_BRIGHT } from '@/lib/graphColors';
+import {
+  GraphRow, GraphFilters,
+  InsiderNodeAttributes, CompanyNodeAttributes, EdgeAttributes,
+} from '@/types/graph';
+import { getTierColor, getRoleColor, COMPANY_COLOR, COMPANY_COLOR_BRIGHT } from '@/lib/graphColors';
 
 function tierSizeBoost(tier: string | null | undefined): number {
   if (tier === 'ELITE') return 2.0;
@@ -13,17 +17,17 @@ function tierSizeBoost(tier: string | null | undefined): number {
 }
 
 function insiderSize(totalBuyValue: number, tier?: string | null): number {
-  if (!totalBuyValue || totalBuyValue <= 0) return 24 * tierSizeBoost(tier);
-  const base = Math.max(24, Math.min(42, Math.log10(totalBuyValue / 50000) * 9 + 24));
-  return Math.min(78, base * tierSizeBoost(tier));
+  if (!totalBuyValue || totalBuyValue <= 0) return 2 * tierSizeBoost(tier);
+  const base = Math.max(2, Math.min(5, Math.log10(totalBuyValue / 50000) * 1.5 + 2));
+  return Math.min(8, base * tierSizeBoost(tier));
 }
 
 function companySize(uniqueInsiders: number): number {
-  return Math.max(30, Math.min(66, uniqueInsiders * 6 + 24));
+  return Math.max(3, Math.min(6, uniqueInsiders + 2));
 }
 
-function edgeStrokeWidth(buyCount: number): number {
-  return Math.max(2, Math.min(6, buyCount * 0.6));
+function edgeSize(buyCount: number): number {
+  return Math.max(0.3, Math.min(1.5, buyCount * 0.15));
 }
 
 function isWithinTimeRange(dateStr: string | null, filter: GraphFilters['time']): boolean {
@@ -34,9 +38,8 @@ function isWithinTimeRange(dateStr: string | null, filter: GraphFilters['time'])
   return new Date(dateStr) >= cutoff;
 }
 
-export interface UseGraphDataReturn {
-  nodes: D3Node[];
-  links: D3Link[];
+export interface UseGraphDataSigmaReturn {
+  graph: Graph | null;
   loading: boolean;
   error: string;
   nodeCount: number;
@@ -44,10 +47,9 @@ export interface UseGraphDataReturn {
   refresh: (filters: GraphFilters) => Promise<void>;
 }
 
-export function useGraphData(filters: GraphFilters): UseGraphDataReturn {
+export function useGraphDataSigma(filters: GraphFilters): UseGraphDataSigmaReturn {
   const supabase = createClient();
-  const [nodes, setNodes] = useState<D3Node[]>([]);
-  const [links, setLinks] = useState<D3Link[]>([]);
+  const [graph, setGraph] = useState<Graph | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [nodeCount, setNodeCount] = useState(0);
@@ -92,15 +94,8 @@ export function useGraphData(filters: GraphFilters): UseGraphDataReturn {
               ticker,
               company_name,
               sector,
-              industry,
-              exchange,
-              market_cap,
-              description,
               total_buy_value,
-              total_buy_transactions,
-              unique_insiders_bought,
-              last_insider_buy_date,
-              avg_return_pct
+              unique_insiders_bought
             )
           )
         `)
@@ -112,11 +107,9 @@ export function useGraphData(filters: GraphFilters): UseGraphDataReturn {
       }
 
       const { data, error: fetchError } = await query;
-
       if (fetchError) throw fetchError;
       if (!isMountedRef.current) return;
 
-      // Flatten nested Supabase response into GraphRow[]
       const rows: GraphRow[] = [];
       for (const insider of (data || [])) {
         const roles = (insider as any).insider_company_roles || [];
@@ -141,15 +134,8 @@ export function useGraphData(filters: GraphFilters): UseGraphDataReturn {
             ticker: company.ticker,
             company_name: company.company_name,
             sector: company.sector,
-            industry: company.industry,
-            exchange: company.exchange,
-            market_cap: company.market_cap,
-            description: company.description,
             company_total_buy_value: company.total_buy_value,
-            total_buy_transactions: company.total_buy_transactions,
             unique_insiders_bought: company.unique_insiders_bought,
-            last_insider_buy_date: company.last_insider_buy_date,
-            company_avg_return_pct: company.avg_return_pct,
             buy_count: role.buy_count,
             edge_value: role.total_buy_value,
             avg_buy_price: role.avg_buy_price,
@@ -163,19 +149,19 @@ export function useGraphData(filters: GraphFilters): UseGraphDataReturn {
         }
       }
 
-      // Build D3 nodes and links
-      const insiderMap = new Map<string, D3InsiderNode>();
-      const companyMap = new Map<string, D3CompanyNode>();
-      const linkMap = new Map<string, D3Link>();
+      const g = new Graph({ multi: false, type: 'directed' });
+      const insiderNodeIds = new Set<string>();
+      const companyNodeIds = new Set<string>();
 
       for (const row of rows) {
         const insiderKey = `insider-${row.insider_id}`;
         const companyKey = `company-${row.company_id}`;
 
-        if (!insiderMap.has(insiderKey)) {
-          insiderMap.set(insiderKey, {
-            id: insiderKey,
+        if (!insiderNodeIds.has(insiderKey)) {
+          insiderNodeIds.add(insiderKey);
+          const attrs: InsiderNodeAttributes = {
             nodeType: 'insider',
+            type: 'bordered',
             label: row.canonical_name,
             canonical_name: row.canonical_name,
             entity_type: row.entity_type,
@@ -186,42 +172,38 @@ export function useGraphData(filters: GraphFilters): UseGraphDataReturn {
             active_since: row.active_since,
             last_transaction_date: row.last_transaction_date,
             insider_tier: row.insider_tier,
+            x: Math.random() * 100,
+            y: Math.random() * 100,
             size: insiderSize(row.total_buy_value, row.insider_tier),
-            fill: getTierColor(row.insider_tier),
-            stroke: getRoleColor(row.entity_type),
-          });
+            color: getTierColor(row.insider_tier),
+            borderColor: getRoleColor(row.entity_type),
+          };
+          g.addNode(insiderKey, attrs);
         }
 
-        if (!companyMap.has(companyKey)) {
-          companyMap.set(companyKey, {
-            id: companyKey,
+        if (!companyNodeIds.has(companyKey)) {
+          companyNodeIds.add(companyKey);
+          const attrs: CompanyNodeAttributes = {
             nodeType: 'company',
+            type: 'diamond',
             label: row.ticker,
             ticker: row.ticker,
             company_name: row.company_name,
             sector: row.sector,
-            industry: row.industry,
-            exchange: row.exchange,
-            market_cap: row.market_cap,
-            description: row.description,
             unique_insiders_bought: row.unique_insiders_bought,
             company_total_buy_value: row.company_total_buy_value,
-            total_buy_transactions: row.total_buy_transactions,
-            last_insider_buy_date: row.last_insider_buy_date,
-            avg_return_pct: row.company_avg_return_pct,
+            x: Math.random() * 100,
+            y: Math.random() * 100,
             size: companySize(row.unique_insiders_bought),
-            fill: COMPANY_COLOR,
-            stroke: COMPANY_COLOR_BRIGHT,
-          });
+            color: COMPANY_COLOR,
+            borderColor: COMPANY_COLOR_BRIGHT,
+          };
+          g.addNode(companyKey, attrs);
         }
 
-        const linkKey = `${insiderKey}->${companyKey}`;
-        if (!linkMap.has(linkKey)) {
-          linkMap.set(linkKey, {
-            id: linkKey,
-            source: insiderKey,
-            target: companyKey,
-            strokeWidth: edgeStrokeWidth(row.buy_count),
+        const edgeKey = `${insiderKey}->${companyKey}`;
+        if (!g.hasEdge(edgeKey)) {
+          const edgeAttrs: EdgeAttributes = {
             buy_count: row.buy_count,
             edge_value: row.edge_value,
             avg_buy_price: row.avg_buy_price,
@@ -231,19 +213,18 @@ export function useGraphData(filters: GraphFilters): UseGraphDataReturn {
             is_ten_percent_owner: row.is_ten_percent_owner,
             first_filing_date: row.first_filing_date,
             last_filing_date: row.last_filing_date,
+            size: edgeSize(row.buy_count),
+            color: '#333333',
             insiderName: row.canonical_name,
             ticker: row.ticker,
-          });
+          };
+          g.addEdgeWithKey(edgeKey, insiderKey, companyKey, edgeAttrs);
         }
       }
 
-      const allNodes: D3Node[] = [...insiderMap.values(), ...companyMap.values()];
-      const allLinks: D3Link[] = [...linkMap.values()];
-
-      setNodes(allNodes);
-      setLinks(allLinks);
-      setNodeCount(allNodes.length);
-      setEdgeCount(allLinks.length);
+      setGraph(g);
+      setNodeCount(g.order);
+      setEdgeCount(g.size);
     } catch (err: unknown) {
       if (!isMountedRef.current) return;
       setError(err instanceof Error ? err.message : 'Failed to load graph data');
@@ -259,5 +240,5 @@ export function useGraphData(filters: GraphFilters): UseGraphDataReturn {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [filters.minValue, filters.role, filters.time]);
 
-  return { nodes, links, loading, error, nodeCount, edgeCount, refresh };
+  return { graph, loading, error, nodeCount, edgeCount, refresh };
 }

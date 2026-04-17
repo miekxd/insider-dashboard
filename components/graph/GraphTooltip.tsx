@@ -1,7 +1,7 @@
 'use client';
 
 import React, { memo } from 'react';
-import { InsiderNodeAttributes, CompanyNodeAttributes, EdgeAttributes } from '@/types/graph';
+import { InsiderAttrs, CompanyAttrs, EdgeAttrs } from '@/types/graph';
 import { ENTITY_COLORS, getTierColor } from '@/lib/graphColors';
 
 interface TooltipPosition {
@@ -11,17 +11,17 @@ interface TooltipPosition {
 
 interface InsiderTooltipData {
   type: 'insider';
-  attrs: InsiderNodeAttributes;
+  attrs: InsiderAttrs;
 }
 
 interface CompanyTooltipData {
   type: 'company';
-  attrs: CompanyNodeAttributes;
+  attrs: CompanyAttrs;
 }
 
 interface EdgeTooltipData {
   type: 'edge';
-  attrs: EdgeAttributes;
+  attrs: EdgeAttrs;
 }
 
 export type TooltipData = InsiderTooltipData | CompanyTooltipData | EdgeTooltipData;

@@ -1,14 +1,14 @@
 'use client';
 
 import React, { memo } from 'react';
-import { ROLE_COLORS, COMPANY_COLOR, TIER_COLORS } from '@/lib/graphColors';
+import { ROLE_COLORS, COMPANY_COLOR, COMPANY_COLOR_BRIGHT, TIER_COLORS } from '@/lib/graphColors';
 
 const TIER_ITEMS = [
-  { label: 'Elite',          color: TIER_COLORS.ELITE },
-  { label: 'Strong',         color: TIER_COLORS.STRONG },
-  { label: 'Average',        color: TIER_COLORS.AVERAGE },
-  { label: 'Underperformer', color: TIER_COLORS.UNDERPERFORMER },
-  { label: 'Unknown',        color: TIER_COLORS.UNKNOWN },
+  { label: 'Elite',    color: TIER_COLORS.ELITE },
+  { label: 'Strong',   color: TIER_COLORS.STRONG },
+  { label: 'Average',  color: TIER_COLORS.AVERAGE },
+  { label: 'Under',    color: TIER_COLORS.UNDERPERFORMER },
+  { label: 'Unknown',  color: TIER_COLORS.UNKNOWN },
 ];
 
 const ROLE_ITEMS = [
@@ -18,10 +18,31 @@ const ROLE_ITEMS = [
   { label: 'Fund',      color: ROLE_COLORS.FUND },
 ];
 
+function Circle({ fill, ring }: { fill?: string; ring?: string }) {
+  return (
+    <div style={{
+      width: 9, height: 9, borderRadius: '50%', flexShrink: 0,
+      backgroundColor: fill ?? 'transparent',
+      border: ring ? `2px solid ${ring}` : '2px solid transparent',
+    }} />
+  );
+}
+
+function Diamond({ fill, ring }: { fill?: string; ring?: string }) {
+  return (
+    <div style={{
+      width: 9, height: 9, flexShrink: 0,
+      backgroundColor: fill ?? 'transparent',
+      border: ring ? `1.5px solid ${ring}` : 'none',
+      transform: 'rotate(45deg)',
+    }} />
+  );
+}
+
 export const GraphLegend = memo(function GraphLegend() {
   return (
     <div
-      className="absolute bottom-4 left-4 flex flex-col gap-1.5 px-3 py-2.5 rounded-lg"
+      className="absolute bottom-4 left-4 flex gap-4 px-3 py-2.5 rounded-lg"
       style={{
         backgroundColor: 'var(--bg-elevated)',
         border: '1px solid var(--border-primary)',
@@ -29,41 +50,43 @@ export const GraphLegend = memo(function GraphLegend() {
         zIndex: 10,
       }}
     >
-      {/* Tier = fill color */}
-      <span className="text-xs mb-0.5" style={{ color: 'var(--text-muted)' }}>Tier (fill)</span>
-      {TIER_ITEMS.map((item) => (
-        <div key={item.label} className="flex items-center gap-2">
-          <div style={{ width: 10, height: 10, borderRadius: '50%', backgroundColor: item.color, flexShrink: 0 }} />
-          <span className="text-xs" style={{ color: 'var(--text-tertiary)' }}>{item.label}</span>
-        </div>
-      ))}
-
-      {/* Role = border ring */}
-      <div className="mt-2 pt-1.5" style={{ borderTop: '1px solid var(--border-primary)' }}>
-        <span className="text-xs mb-1 block" style={{ color: 'var(--text-muted)' }}>Role (ring)</span>
-        {ROLE_ITEMS.map((item) => (
-          <div key={item.label} className="flex items-center gap-2 mt-1">
-            <div style={{
-              width: 10, height: 10, borderRadius: '50%',
-              backgroundColor: 'transparent',
-              border: `2px solid ${item.color}`,
-              flexShrink: 0,
-            }} />
+      {/* Tier column */}
+      <div className="flex flex-col gap-1">
+        <span className="text-xs mb-0.5 font-semibold" style={{ color: 'var(--text-muted)' }}>Tier (fill)</span>
+        {TIER_ITEMS.map((item) => (
+          <div key={item.label} className="flex items-center gap-1.5">
+            <Circle fill={item.color} />
             <span className="text-xs" style={{ color: 'var(--text-tertiary)' }}>{item.label}</span>
           </div>
         ))}
-        <div className="flex items-center gap-2 mt-1">
-          <div style={{
-            width: 10, height: 10, borderRadius: 2,
-            backgroundColor: COMPANY_COLOR,
-            flexShrink: 0,
-          }} />
+      </div>
+
+      {/* Divider */}
+      <div style={{ width: 1, backgroundColor: 'var(--border-primary)', alignSelf: 'stretch' }} />
+
+      {/* Role column */}
+      <div className="flex flex-col gap-1">
+        <span className="text-xs mb-0.5 font-semibold" style={{ color: 'var(--text-muted)' }}>Role (ring)</span>
+        {ROLE_ITEMS.map((item) => (
+          <div key={item.label} className="flex items-center gap-1.5">
+            <Circle ring={item.color} />
+            <span className="text-xs" style={{ color: 'var(--text-tertiary)' }}>{item.label}</span>
+          </div>
+        ))}
+        <div className="flex items-center gap-1.5 mt-1">
+          <Diamond fill={COMPANY_COLOR} ring={COMPANY_COLOR_BRIGHT} />
           <span className="text-xs" style={{ color: 'var(--text-tertiary)' }}>Company</span>
         </div>
       </div>
 
-      <div className="mt-1.5 pt-1.5" style={{ borderTop: '1px solid var(--border-primary)' }}>
-        <span className="text-xs" style={{ color: 'var(--text-muted)' }}>Size = buy value × tier</span>
+      {/* Divider */}
+      <div style={{ width: 1, backgroundColor: 'var(--border-primary)', alignSelf: 'stretch' }} />
+
+      {/* Size hint */}
+      <div className="flex flex-col justify-center gap-1">
+        <span className="text-xs" style={{ color: 'var(--text-muted)', maxWidth: 72, lineHeight: 1.4 }}>
+          Size = buy value × tier
+        </span>
       </div>
     </div>
   );

@@ -35,6 +35,9 @@ export default function Version1_5Page() {
     filter,
     setFilter,
     stats,
+    minSignal,
+    setMinSignal,
+    maxSignal,
   } = useLLMCalls1_5();
 
   // Modal state
@@ -133,31 +136,69 @@ export default function Version1_5Page() {
         formatCompactCurrency={formatCompactCurrency}
       />
 
-      {/* Filter Tabs */}
+      {/* Filter Tabs + Signal Score filter */}
       <div className="border-b" style={{ borderColor: 'var(--border-primary)' }}>
         <div className="max-w-[1600px] mx-auto px-6 lg:px-8">
-          <nav className="flex gap-1 py-2" role="tablist" aria-label="Filter positions">
-            {FILTER_OPTIONS.map((f) => (
-              <button
-                key={f.key}
-                onClick={() => handleFilterChange(f.key)}
-                className="px-4 py-2 text-sm font-medium rounded transition-colors"
-                style={{
-                  backgroundColor:
-                    filter === f.key ? 'var(--accent-primary)' : 'transparent',
-                  color:
-                    filter === f.key
-                      ? 'var(--text-on-accent)'
-                      : 'var(--text-secondary)',
-                }}
-                role="tab"
-                aria-selected={filter === f.key}
-                aria-controls="positions-table"
+          <div className="flex items-center justify-between py-2">
+            <nav className="flex gap-1" role="tablist" aria-label="Filter positions">
+              {FILTER_OPTIONS.map((f) => (
+                <button
+                  key={f.key}
+                  onClick={() => handleFilterChange(f.key)}
+                  className="px-4 py-2 text-sm font-medium rounded transition-colors"
+                  style={{
+                    backgroundColor:
+                      filter === f.key ? 'var(--accent-primary)' : 'transparent',
+                    color:
+                      filter === f.key
+                        ? 'var(--text-on-accent)'
+                        : 'var(--text-secondary)',
+                  }}
+                  role="tab"
+                  aria-selected={filter === f.key}
+                  aria-controls="positions-table"
+                >
+                  {f.label}
+                </button>
+              ))}
+            </nav>
+
+            {/* Signal score range filter */}
+            <div className="flex items-center gap-2">
+              <span className="text-xs" style={{ color: 'var(--text-tertiary)' }}>
+                Score ≥
+              </span>
+              <input
+                type="range"
+                min={0}
+                max={maxSignal}
+                step={1}
+                value={minSignal}
+                onChange={(e) => setMinSignal(Number(e.target.value))}
+                className="w-28 accent-[var(--accent-primary)]"
+                aria-label="Minimum signal score"
+              />
+              <span
+                className="font-mono text-xs tabular-nums w-8 text-right"
+                style={{ color: 'var(--text-secondary)' }}
               >
-                {f.label}
-              </button>
-            ))}
-          </nav>
+                {minSignal === 0 ? 'all' : minSignal}
+              </span>
+              {minSignal > 0 && (
+                <button
+                  onClick={() => setMinSignal(0)}
+                  className="text-xs px-1.5 py-0.5 rounded"
+                  style={{
+                    backgroundColor: 'var(--bg-tertiary)',
+                    color: 'var(--text-tertiary)',
+                  }}
+                  title="Clear signal filter"
+                >
+                  ×
+                </button>
+              )}
+            </div>
+          </div>
         </div>
       </div>
 

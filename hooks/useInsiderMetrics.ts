@@ -35,11 +35,20 @@ export function useInsiderMetrics(canonicalName: string | null) {
     async function fetch() {
       setLoading(true);
       try {
-        // 1. Get all P-code transactions for this insider
+        // 1. Resolve insider_profile_id from canonical_name
+        const { data: profile, error: profileErr } = await supabase
+          .from('insider_profiles')
+          .select('id')
+          .eq('canonical_name', canonicalName!)
+          .single();
+
+        if (profileErr || !profile) { if (!cancelled) { setMetrics(null); setLoading(false); } return; }
+
+        // 2. Get all P-code transactions for this insider via profile ID
         const { data: txns, error: txnErr } = await supabase
           .from('insider_transactions')
           .select('ticker, transaction_date, price_per_share, transaction_value')
-          .ilike('insider_name', canonicalName!)
+          .eq('insider_profile_id', profile.id)
           .eq('transaction_code', 'P')
           .gt('price_per_share', 0)
           .order('transaction_date', { ascending: false });
