@@ -17,15 +17,15 @@ export interface GraphRow {
   ticker: string;
   company_name: string;
   sector: string | null;
-  industry: string | null;
-  exchange: string | null;
-  market_cap: number | null;
-  description: string | null;
+  industry?: string | null;
+  exchange?: string | null;
+  market_cap?: number | null;
+  description?: string | null;
   company_total_buy_value: number;
-  company_total_buy_transactions: number;
+  company_total_buy_transactions?: number;
   unique_insiders_bought: number;
-  last_insider_buy_date: string | null;
-  company_avg_return_pct: number | null;
+  last_insider_buy_date?: string | null;
+  company_avg_return_pct?: number | null;
 
   buy_count: number;
   edge_value: number;
@@ -58,15 +58,15 @@ export interface CompanyAttrs {
   ticker: string;
   company_name: string;
   sector: string | null;
-  industry: string | null;
-  exchange: string | null;
-  market_cap: number | null;
+  industry?: string | null;
+  exchange?: string | null;
+  market_cap?: number | null;
   unique_insiders_bought: number;
   company_total_buy_value: number;
-  total_buy_transactions: number;
-  last_insider_buy_date: string | null;
-  avg_return_pct: number | null;
-  description: string | null;
+  total_buy_transactions?: number;
+  last_insider_buy_date?: string | null;
+  avg_return_pct?: number | null;
+  description?: string | null;
 }
 
 export interface EdgeAttrs {
