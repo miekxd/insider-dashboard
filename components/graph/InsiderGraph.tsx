@@ -201,10 +201,10 @@ export const InsiderGraph = memo(function InsiderGraph({
       .alphaDecay(0.0114)
       .stop();
 
-    // Pre-run to establish sphere layout before first paint
-    for (let i = 0; i < 200; i++) sim.tick();
+    // Pre-run ~80% of the simulation silently so the sphere is already formed on first paint
+    for (let i = 0; i < 480; i++) sim.tick();
 
-    // Apply initial zoom fit immediately (no animation — nodes are already placed)
+    // Apply zoom fit immediately — no animation, nodes are already placed
     {
       const xs = simNodes.map(n => n.x!).filter(isFinite);
       const ys = simNodes.map(n => n.y!).filter(isFinite);
@@ -219,9 +219,9 @@ export const InsiderGraph = memo(function InsiderGraph({
       }
     }
 
-    // Restart at reduced alpha for gentle final settling
+    // Restart at very low alpha — just enough for subtle final micro-adjustments
     sim
-      .alpha(0.3)
+      .alpha(0.04)
       .restart()
       .on('tick', () => {
         linkSel
