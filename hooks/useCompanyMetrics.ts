@@ -5,7 +5,7 @@ import { createClient } from '@/lib/supabase/client';
 
 export interface CompanyInsider {
   canonical_name: string;
-  entity_type: string;
+  entity_type: 'OFFICER' | 'DIRECTOR' | 'OWNER_10PCT' | 'FUND' | 'UNKNOWN';
   insider_tier: string | null;
   buy_count: number;
   total_buy_value: number;
@@ -82,7 +82,7 @@ export function useCompanyMetrics(ticker: string | null) {
           .filter((r: any) => r.insider_profiles)
           .map((r: any) => ({
             canonical_name: r.insider_profiles.canonical_name,
-            entity_type: r.insider_profiles.entity_type,
+            entity_type: r.insider_profiles.entity_type as CompanyInsider['entity_type'],
             insider_tier: r.insider_profiles.insider_tier,
             buy_count: r.buy_count,
             total_buy_value: r.total_buy_value,
