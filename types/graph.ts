@@ -22,7 +22,7 @@ export interface GraphRow {
   market_cap: number | null;
   description: string | null;
   company_total_buy_value: number;
-  total_buy_transactions: number;
+  company_total_buy_transactions: number;
   unique_insiders_bought: number;
   last_insider_buy_date: string | null;
   company_avg_return_pct: number | null;
